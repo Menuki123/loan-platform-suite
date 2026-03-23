@@ -1,9 +1,15 @@
+
+
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const { runAgent } = require('./agent/qaAgent');
 
 const app = express();
+app.use(cors());
 app.use(express.json({ limit: '1mb' }));
+
+
 
 app.get("/qa/run", (req, res) => {
     res.json({
@@ -51,6 +57,7 @@ app.post('/qa/run', async (req, res) => {
         res.status(500).json({ status: 'error', message: error.message });
     }
 });
+
 
 const PORT = process.env.AGENT_PORT || 4000;
 app.listen(PORT, () => {
