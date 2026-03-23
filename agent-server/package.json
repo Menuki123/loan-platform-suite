@@ -1,0 +1,16 @@
+{
+  "name": "loan-agent-server",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.8.4",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "swagger-parser": "^10.0.3",
+    "yamljs": "^0.3.0"
+  }
+}

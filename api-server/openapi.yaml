@@ -1,0 +1,779 @@
+openapi: 3.0.3
+info:
+  title: Loan Management API
+  version: 2.1.0
+  description: |
+    Loan Management API with layered route/controller design.
+
+    Existing features are preserved, and the improved version adds:
+    - loan validation registry
+    - loan approval workflow
+    - loan disbursement workflow
+    - loan redirection to a responsible group
+    - richer loan table fields for approval and disbursement tracking
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: Customers
+    description: Customer management operations
+  - name: Underwriting
+    description: Underwriting and eligibility checks
+  - name: Loans
+    description: Loan workflow operations
+  - name: Payments
+    description: Payment operations
+  - name: Reports
+    description: Reporting endpoints
+  - name: Users
+    description: User management
+  - name: Groups
+    description: Group management
+  - name: Application Forms
+    description: Large JSON-backed application form storage linked to loans
+
+paths:
+  /customers:
+    post:
+      tags:
+        - Customers
+      summary: Create customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerInput'
+      responses:
+        '201':
+          description: Customer created
+    get:
+      tags:
+        - Customers
+      summary: Get all customers
+      responses:
+        '200':
+          description: Customer list
+
+  /customers/{id}:
+    get:
+      tags:
+        - Customers
+      summary: Get customer by id
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Customer found
+        '404':
+          description: Customer not found
+    put:
+      tags:
+        - Customers
+      summary: Update customer
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerInput'
+      responses:
+        '200':
+          description: Customer updated
+    delete:
+      tags:
+        - Customers
+      summary: Delete customer
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Customer deleted
+
+  /underwriting/check-eligibility:
+    post:
+      tags:
+        - Underwriting
+      summary: Run underwriting eligibility check
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - customer_id
+                - product_type
+              properties:
+                customer_id:
+                  type: integer
+                product_type:
+                  type: string
+                  enum:
+                    - PRODUCT_A
+                    - PRODUCT_B
+      responses:
+        '200':
+          description: Underwriting result
+        '404':
+          description: Customer not found
+
+  /loans:
+    post:
+      tags:
+        - Loans
+      summary: Create loan request
+      description: Creates a loan request, validates it, and stores the result in the validation registry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanCreateInput'
+      responses:
+        '201':
+          description: Loan request created
+        '400':
+          description: Validation failed
+    get:
+      tags:
+        - Loans
+      summary: Get all loans
+      responses:
+        '200':
+          description: Loan list
+
+  /loans/{id}:
+    get:
+      tags:
+        - Loans
+      summary: Get loan by id
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Loan found
+        '404':
+          description: Loan not found
+    put:
+      tags:
+        - Loans
+      summary: Update editable loan details
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanUpdateInput'
+      responses:
+        '200':
+          description: Loan updated
+    delete:
+      tags:
+        - Loans
+      summary: Delete loan
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Loan deleted
+
+  /loans/{id}/validate/submission:
+    post:
+      tags:
+        - Loans
+      summary: Validate submission stage and move loan to SUBMITTED
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Submission validation passed and loan moved to SUBMITTED
+        '400':
+          description: Submission validation failed
+
+  /loans/{id}/validate/approval:
+    post:
+      tags:
+        - Loans
+      summary: Validate approval stage and move loan to APPROVED
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Approval validation passed and loan moved to APPROVED
+        '400':
+          description: Approval validation failed
+
+  /loans/{id}/validate/disburse:
+    post:
+      tags:
+        - Loans
+      summary: Validate disbursement stage and move loan to DISBURSED
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Disbursement validation passed and loan moved to DISBURSED
+        '400':
+          description: Disbursement validation failed
+
+  /loans/{id}/approve:
+    put:
+      tags:
+        - Loans
+      summary: Approve a validated loan
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                approved_by:
+                  type: integer
+      responses:
+        '200':
+          description: Loan approved
+        '400':
+          description: Loan not ready for approval
+
+  /loans/{id}/disburse:
+    put:
+      tags:
+        - Loans
+      summary: Disburse an approved loan
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Loan disbursed
+        '400':
+          description: Loan must be approved first
+
+  /loans/{id}/redirect:
+    post:
+      tags:
+        - Loans
+      summary: Redirect loan to a responsible group
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - group_id
+              properties:
+                group_id:
+                  type: integer
+      responses:
+        '200':
+          description: Loan redirected
+
+  /loans/{id}/registry:
+    get:
+      tags:
+        - Loans
+      summary: Get validation registry entries for a loan
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Validation registry entries returned
+
+  /payments:
+    post:
+      tags:
+        - Payments
+      summary: Create payment
+      description: Payment is allowed only for DISBURSED loans in the application workflow.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentInput'
+      responses:
+        '201':
+          description: Payment recorded
+    get:
+      tags:
+        - Payments
+      summary: Get all payments
+      responses:
+        '200':
+          description: Payment list
+
+  /payments/{id}:
+    get:
+      tags:
+        - Payments
+      summary: Get payment by id
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Payment found
+    put:
+      tags:
+        - Payments
+      summary: Update payment
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - payment_method
+              properties:
+                payment_method:
+                  type: string
+                reference_number:
+                  type: string
+      responses:
+        '200':
+          description: Payment updated
+    delete:
+      tags:
+        - Payments
+      summary: Delete payment
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Payment deleted
+
+  /reports/active-loans:
+    get:
+      tags:
+        - Reports
+      summary: Get active workflow loans
+      responses:
+        '200':
+          description: Active loan report
+
+  /reports/customer-loan-summary:
+    get:
+      tags:
+        - Reports
+      summary: Get customer loan summary
+      responses:
+        '200':
+          description: Customer summary report
+
+  /reports/payment-history:
+    get:
+      tags:
+        - Reports
+      summary: Get payment history
+      responses:
+        '200':
+          description: Payment history report
+
+  /users:
+    post:
+      tags:
+        - Users
+      summary: Create user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserInput'
+      responses:
+        '201':
+          description: User created
+    get:
+      tags:
+        - Users
+      summary: Get all users
+      responses:
+        '200':
+          description: User list
+
+  /users/{id}:
+    get:
+      tags:
+        - Users
+      summary: Get user by id
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: User found
+    put:
+      tags:
+        - Users
+      summary: Update user
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserInput'
+      responses:
+        '200':
+          description: User updated
+    delete:
+      tags:
+        - Users
+      summary: Delete user
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: User deleted
+
+  /groups:
+    post:
+      tags:
+        - Groups
+      summary: Create group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupInput'
+      responses:
+        '201':
+          description: Group created
+    get:
+      tags:
+        - Groups
+      summary: Get all groups
+      responses:
+        '200':
+          description: Group list
+
+  /groups/{id}:
+    get:
+      tags:
+        - Groups
+      summary: Get group by id
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Group found
+    put:
+      tags:
+        - Groups
+      summary: Update group
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupInput'
+      responses:
+        '200':
+          description: Group updated
+    delete:
+      tags:
+        - Groups
+      summary: Delete group
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Group deleted
+
+  /groups/{id}/users:
+    post:
+      tags:
+        - Groups
+      summary: Add user to group
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_id
+              properties:
+                user_id:
+                  type: integer
+      responses:
+        '201':
+          description: Membership created
+    get:
+      tags:
+        - Groups
+      summary: Get users in group
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Group users returned
+
+  /groups/{id}/users/{userId}:
+    delete:
+      tags:
+        - Groups
+      summary: Remove user from group
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Membership removed
+
+  /application-forms:
+    post:
+      tags:
+        - Application Forms
+      summary: Create or replace application form
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - loan_id
+              properties:
+                loan_id:
+                  type: integer
+                personal:
+                  type: object
+                  additionalProperties: true
+                address:
+                  type: object
+                  additionalProperties: true
+                contact:
+                  type: object
+                  additionalProperties: true
+                education:
+                  type: object
+                  additionalProperties: true
+                income:
+                  type: object
+                  additionalProperties: true
+                expense:
+                  type: object
+                  additionalProperties: true
+                obligations:
+                  type: object
+                  additionalProperties: true
+                assets:
+                  type: object
+                  additionalProperties: true
+                insurance:
+                  type: object
+                  additionalProperties: true
+                business:
+                  type: object
+                  additionalProperties: true
+                guarantors:
+                  type: object
+                  additionalProperties: true
+                joint_borrowers:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '201':
+          description: Application form saved
+
+  /application-forms/loan/{loanId}:
+    get:
+      tags:
+        - Application Forms
+      summary: Get application form by loan id
+      parameters:
+        - in: path
+          name: loanId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Application form
+
+  /application-forms/loan/{loanId}/{section}:
+    patch:
+      tags:
+        - Application Forms
+      summary: Update one application form JSON section
+      parameters:
+        - in: path
+          name: loanId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: section
+          required: true
+          schema:
+            type: string
+            enum:
+              - personal
+              - address
+              - contact
+              - education
+              - income
+              - expense
+              - obligations
+              - assets
+              - insurance
+              - business
+              - guarantors
+              - joint_borrowers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Section updated
+
+components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  schemas:
+    CustomerInput:
+      type: object
+      required:
+        - first_name
+        - last_name
+        - email
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        date_of_birth:
+          type: string
+          format: date
+        employment_type:
+          type: string
+        monthly_income:
+          type: number
+        monthly_expenses:
+          type: number
+        credit_score:
+          type: integer
+        residency_status:
+          type: string
+        business_turnover:
+          type: number
+
+    LoanCreateInput:
+      type: object
+      required:
+        - customer_id
+        - product_type
+        - loan_amount
+        - interest_rate
+        - loan_term_months
+      properties:
+        customer_id:
+          type: integer
+        product_type:
+          type: string
+          enum:
+            - PRODUCT_A
+            - PRODUCT_B
+        loan_amount:
+          type: number
+        interest_rate:
+          type: number
+        loan_term_months:
+          type: integer
+
+    LoanUpdateInput:
+      type: object
+      required:
+        - product_type
+        - interest_rate
+        - loan_term_months
+      properties:
+        product_type:
+          type: string
+          enum:
+            - PRODUCT_A
+            - PRODUCT_B
+        interest_rate:
+          type: number
+        loan_term_months:
+          type: integer
+
+    PaymentInput:
+      type: object
+      required:
+        - loan_id
+        - payment_amount
+        - payment_method
+      properties:
+        loan_id:
+          type: integer
+        payment_amount:
+          type: number
+        payment_method:
+          type: string
+        reference_number:
+          type: string
+
+    UserInput:
+      type: object
+      required:
+        - full_name
+        - email
+      properties:
+        full_name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+
+    GroupInput:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        description:
+          type: string
