@@ -1,57 +1,63 @@
 
-# Loan Platform Suite
+loan-platform-suite/
+├── api-server/
+├── agent-server/
+├── frontend/
+├── README.md
 
-This folder contains all three projects requested:
 
-- `api-server/` — Express API for customers, loans, underwriting, workflow validation, payments, groups, users, and application forms
-- `agent-server/` — decoupled agentic QA service that loads Swagger, selects relevant endpoints, generates dummy inputs, invokes APIs, and evaluates pass/fail
-- `frontend/` — React + Tailwind presentation layer for the whole approach
+---
 
-## Run order
+## Tech Stack
 
-### 1) API server
+- **Frontend:** React, Tailwind CSS, Vite
+- **Backend:** Node.js, Express
+- **Agent Logic:** LLM-style evaluation + Swagger-driven execution
+- **API Definition:** OpenAPI / Swagger
+- **Deployment:** GitHub, GitHub Pages (Frontend)
+
+---
+
+## How to Run the Project
+
+### 1. API Server
+
 ```bash
 cd api-server
 npm install
 node app.js
-```
 
-Open:
-- `http://localhost:3000/health`
-- `http://localhost:3000/api-docs`
+Runs on:
 
-### 2) Agent server
-```bash
-cd ../agent-server
+http://localhost:3000
+2. Agent Server
+cd agent-server
 npm install
 node server.js
-```
 
-Open:
-- `http://localhost:4000/`
-- `http://localhost:4000/health`
+Runs on:
 
-### 3) Frontend
-```bash
-cd ../frontend
+http://localhost:4000
+3. Frontend
+cd frontend
 npm install
 npm run dev
-```
 
-Open:
-- `http://localhost:5173`
+Runs on:
 
-## Notes
-- Delete `api-server/loan.db` if you need the database schema recreated from scratch.
-- The agent server defaults to `../api-server/openapi.yaml` in this three-project structure.
-- The frontend defaults to talking to `http://localhost:3000` and `http://localhost:4000`.
-
-## Suggested GitLab push
-```bash
-git init
-git add .
-git commit -m "Add API server, agent server, and React frontend suite"
-git branch -M main
-git remote add origin <your-gitlab-repository-url>
-git push -u origin main
-```
+http://localhost:5173
+How It Works
+User enters a prompt in the frontend
+System configuration is applied (API base URL, Swagger source)
+Agent:
+Loads Swagger definition
+Selects relevant endpoints
+Generates test inputs
+Executes API calls
+Results are evaluated and returned
+Frontend displays:
+Summary
+Decision
+Reasoning
+Test inputs
+Execution results
