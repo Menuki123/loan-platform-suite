@@ -1,10 +1,20 @@
 const path = require('path');
 const SwaggerParser = require('swagger-parser');
 
-async function loadRoutes(swaggerPath) {
-  const resolved = path.resolve(__dirname, '..', swaggerPath);
-  const api = await SwaggerParser.validate(resolved);
+function isHttpUrl(value = '') {
+  return /^https?:\/\//i.test(value);
+}
+
+async function loadRoutes(swaggerSource) {
+  let sourceToLoad = swaggerSource || '../api-server/openapi.yaml';
+
+  if (!isHttpUrl(sourceToLoad)) {
+    sourceToLoad = path.resolve(__dirname, '..', sourceToLoad);
+  }
+
+  const api = await SwaggerParser.validate(sourceToLoad);
   const routes = [];
+
   for (const [routePath, methods] of Object.entries(api.paths || {})) {
     for (const [method, config] of Object.entries(methods || {})) {
       routes.push({
@@ -18,6 +28,7 @@ async function loadRoutes(swaggerPath) {
       });
     }
   }
+
   return routes;
 }
 

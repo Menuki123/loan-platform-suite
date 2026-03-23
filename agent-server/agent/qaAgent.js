@@ -5,13 +5,13 @@ const { generatePayload } = require('../tools/payloadGenerator');
 const { invokeApi } = require('../tools/apiInvoker');
 const { evaluateResponse } = require('../tools/evaluator');
 
-async function runAgent({ prompt, apiBaseUrl, swaggerPath, maxRoutes }) {
-    const routes = await loadRoutes(swaggerPath);
-    console.log("[AGENT] Loaded routes:", routes.length);
+async function runAgent({ prompt, apiBaseUrl, swaggerSource, maxRoutes }) {
+    const routes = await loadRoutes(swaggerSource);
+    console.log('[AGENT] Loaded routes:', routes.length);
 
     const selectedRoutes = await selectRoutes(prompt, routes, maxRoutes);
     console.log(
-        "[AGENT] Selected routes:",
+        '[AGENT] Selected routes:',
         selectedRoutes.map(r => `${r.method} ${r.path}`)
     );
 
@@ -22,14 +22,14 @@ async function runAgent({ prompt, apiBaseUrl, swaggerPath, maxRoutes }) {
         const schema = route.requestBody?.content?.['application/json']?.schema;
         const payload = generatePayload(schema);
 
-        console.log("[AGENT] Executing:", route.method, route.path);
-        console.log("[AGENT] Payload:", JSON.stringify(payload, null, 2));
+        console.log('[AGENT] Executing:', route.method, route.path);
+        console.log('[AGENT] Payload:', JSON.stringify(payload, null, 2));
 
         const response = await invokeApi(apiBaseUrl, route, payload);
-        console.log("[AGENT] Response:", JSON.stringify(response, null, 2));
+        console.log('[AGENT] Response:', JSON.stringify(response, null, 2));
 
         const evaluation = await evaluateResponse(route, response);
-        console.log("[AGENT] Evaluation:", JSON.stringify(evaluation, null, 2));
+        console.log('[AGENT] Evaluation:', JSON.stringify(evaluation, null, 2));
 
         results.push({
             route: `${route.method} ${route.path}`,
@@ -56,7 +56,7 @@ async function runAgent({ prompt, apiBaseUrl, swaggerPath, maxRoutes }) {
 
     const executionContext = {
         apiBaseUrl,
-        swaggerPath,
+        swaggerSource,
         maxRoutes,
         selectedRoutes: selectedRoutes.map(r => `${r.method} ${r.path}`)
     };
