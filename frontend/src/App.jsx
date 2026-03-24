@@ -1,200 +1,140 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import ChatShell from './components/ChatShell';
+import ConfigCard from './components/ConfigCard';
+import ExecutionSummary from './components/ExecutionSummary';
+import ToolDrawer from './components/ToolDrawer';
+import { checkHealth, fetchBootstrap, fetchToolRegistry, runAgent } from './lib/api';
 
 const agentBaseDefault = import.meta.env.VITE_AGENT_BASE_URL || 'http://localhost:4000';
-
-function HumanFriendlyResult({ result }) {
-  const findings = result.summary?.keyFindings || [];
-
-  return (
-    <div className='max-w-[90%] rounded-2xl bg-white p-5 text-gray-900 shadow-xl'>
-      <div className='flex items-center justify-between gap-3'>
-        <h3 className='text-xl font-bold'>Execution Summary</h3>
-        <span
-          className={`rounded-full px-3 py-1 text-sm font-semibold ${
-            result.decision === 'PASS'
-              ? 'bg-green-100 text-green-700'
-              : 'bg-red-100 text-red-700'
-          }`}
-        >
-          {result.decision}
-        </span>
-      </div>
-
-      <p className='mt-3 text-sm text-gray-600'>{result.userSummary?.overview}</p>
-      <p className='mt-2 text-sm text-gray-700'>{result.userSummary?.result}</p>
-      <p className='mt-2 text-sm text-gray-500'>{result.userSummary?.impact}</p>
-
-      <div className='mt-5 grid gap-3 md:grid-cols-3'>
-        <div className='rounded-xl bg-gray-50 p-4'>
-          <div className='text-xs text-gray-500'>Total Tests</div>
-          <div className='text-2xl font-bold'>{result.summary?.totalTests ?? 0}</div>
-        </div>
-        <div className='rounded-xl bg-green-50 p-4'>
-          <div className='text-xs text-green-700'>Passed</div>
-          <div className='text-2xl font-bold text-green-800'>{result.summary?.passed ?? 0}</div>
-        </div>
-        <div className='rounded-xl bg-red-50 p-4'>
-          <div className='text-xs text-red-700'>Failed</div>
-          <div className='text-2xl font-bold text-red-800'>{result.summary?.failed ?? 0}</div>
-        </div>
-      </div>
-
-      <div className='mt-5'>
-        <h4 className='font-semibold'>Key Findings</h4>
-        <div className='mt-3 space-y-3'>
-          {findings.map((item, idx) => (
-            <div key={idx} className='rounded-xl border p-3'>
-              <div className='flex items-center justify-between gap-3'>
-                <div className='font-medium'>{item.route}</div>
-                <span
-                  className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                    item.result === 'PASS'
-                      ? 'bg-green-100 text-green-700'
-                      : item.result === 'FAIL'
-                        ? 'bg-red-100 text-red-700'
-                        : 'bg-yellow-100 text-yellow-700'
-                  }`}
-                >
-                  {item.result}
-                </span>
-              </div>
-              <div className='mt-2 text-sm text-gray-600'>{item.reason}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <details className='mt-5'>
-        <summary className='cursor-pointer font-medium'>Technical details</summary>
-        <pre className='mt-3 max-h-80 overflow-auto rounded-xl bg-slate-900 p-4 text-xs text-white'>
-          {JSON.stringify(result, null, 2)}
-        </pre>
-      </details>
-    </div>
-  );
-}
+const apiBaseDefault = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 export default function App() {
-  const [messages, setMessages] = useState([]);
+  const [agentBaseUrl, setAgentBaseUrl] = useState(agentBaseDefault);
+  const [health, setHealth] = useState({ api: 'checking', agent: 'checking' });
   const [stage, setStage] = useState('loading');
+  const [messages, setMessages] = useState([]);
+  const [tools, setTools] = useState([]);
   const [loading, setLoading] = useState(false);
-
+  const [prompt, setPrompt] = useState('');
   const [config, setConfig] = useState({
-    apiBaseUrl: '',
-    swaggerUrl: '',
+    apiBaseUrl: apiBaseDefault,
+    swaggerUrl: `${apiBaseDefault}/openapi.yaml`,
     maxRoutes: 4
   });
 
-  const [prompt, setPrompt] = useState('');
-
   useEffect(() => {
-    loadBootstrap();
-  }, []);
+    hydratePage();
+  }, [agentBaseUrl]);
 
-  async function loadBootstrap() {
-    try {
-      const res = await fetch(`${agentBaseDefault}/qa/bootstrap`);
-      const data = await res.json();
+  async function hydratePage() {
+    setStage('loading');
+    const [bootstrapRes, toolsRes, healthRes] = await Promise.allSettled([
+      fetchBootstrap(agentBaseUrl),
+      fetchToolRegistry(agentBaseUrl),
+      checkHealth(apiBaseDefault, agentBaseUrl)
+    ]);
 
-      setStage('collect_meta');
+    if (toolsRes.status === 'fulfilled') {
+      setTools(toolsRes.value.tools || []);
+    }
+
+    if (healthRes.status === 'fulfilled') {
+      setHealth(healthRes.value);
+    }
+
+    if (bootstrapRes.status === 'fulfilled') {
+      const bootstrap = bootstrapRes.value;
+      const apiDefault = bootstrap.component?.fields?.find(x => x.key === 'apiBaseUrl')?.defaultValue || apiBaseDefault;
+      const swaggerDefault = bootstrap.component?.fields?.find(x => x.key === 'swaggerUrl')?.defaultValue || `${apiDefault}/openapi.yaml`;
+      const maxRoutesDefault = bootstrap.component?.fields?.find(x => x.key === 'maxRoutes')?.defaultValue || 4;
+
+      setConfig({ apiBaseUrl: apiDefault, swaggerUrl: swaggerDefault, maxRoutes: maxRoutesDefault });
       setMessages([
         {
+          id: 'bootstrap-message',
           role: 'assistant',
           type: 'text',
-          text: 'Please provide the Swagger URL and config metadata to begin.'
+          text: 'Welcome. I can work in conversation mode. First I need your Swagger URL and runtime metadata.'
         },
         {
+          id: 'bootstrap-config',
           role: 'assistant',
-          type: 'config_form',
-          component: data.component
+          type: 'config',
+          component: bootstrap.component
         }
       ]);
-    } catch (err) {
-      setStage('error');
-      setMessages([
-        {
-          role: 'assistant',
-          type: 'text',
-          text: 'Failed to load the agent configuration form. Please make sure the agent server is running.'
-        }
-      ]);
-    }
-  }
-
-  function submitConfig() {
-    if (!config.apiBaseUrl || !config.swaggerUrl || !config.maxRoutes) {
+      setStage('collect_meta');
       return;
     }
 
-    setMessages((prev) => [
+    setMessages([
+      {
+        id: 'bootstrap-error',
+        role: 'assistant',
+        type: 'text',
+        text: 'I could not load the bootstrap component from the agent server. Please check that the agent server is running.'
+      }
+    ]);
+    setStage('error');
+  }
+
+  function handleConfigSubmit() {
+    setMessages(prev => [
       ...prev,
       {
+        id: `config-summary-${Date.now()}`,
         role: 'user',
-        type: 'config_summary',
+        type: 'summary',
         text: `API Base URL: ${config.apiBaseUrl}\nSwagger URL: ${config.swaggerUrl}\nMax Routes: ${config.maxRoutes}`
       },
       {
+        id: `prompt-request-${Date.now()}`,
         role: 'assistant',
         type: 'text',
-        text: 'Great. Now send me the testing prompt you want to run.'
+        text: 'Configuration captured. Now tell me what you want to test.'
       }
     ]);
-
     setStage('collect_prompt');
   }
 
-  async function submitPrompt() {
-    if (!prompt.trim()) {
-      return;
-    }
+  async function handlePromptSubmit(text) {
+    if (!text.trim()) return;
 
-    const userPrompt = prompt.trim();
     setPrompt('');
     setLoading(true);
-    setStage('running');
-
-    setMessages((prev) => [
+    setMessages(prev => [
       ...prev,
-      { role: 'user', type: 'text', text: userPrompt },
-      { role: 'assistant', type: 'text', text: 'Running the agent now...' }
+      { id: `user-prompt-${Date.now()}`, role: 'user', type: 'text', text },
+      { id: `assistant-run-${Date.now()}`, role: 'assistant', type: 'text', text: 'Running the agent now. I will return a human-friendly summary after execution.' }
     ]);
 
     try {
-      const res = await fetch(`${agentBaseDefault}/qa/run`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          prompt: userPrompt,
-          apiBaseUrl: config.apiBaseUrl,
-          swaggerUrl: config.swaggerUrl,
-          maxRoutes: Number(config.maxRoutes)
-        })
+      const result = await runAgent(agentBaseUrl, {
+        prompt: text,
+        apiBaseUrl: config.apiBaseUrl,
+        swaggerUrl: config.swaggerUrl,
+        maxRoutes: Number(config.maxRoutes),
+        conversationMode: true
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || 'Agent run failed');
-      }
-
-      setMessages((prev) => [
+      setMessages(prev => [
         ...prev,
         {
+          id: `result-${Date.now()}`,
           role: 'assistant',
-          type: 'result_card',
-          result: data
+          type: 'result',
+          result
         }
       ]);
       setStage('show_results');
-    } catch (err) {
-      setMessages((prev) => [
+    } catch (error) {
+      setMessages(prev => [
         ...prev,
         {
+          id: `error-${Date.now()}`,
           role: 'assistant',
           type: 'text',
-          text: err.message || 'Something went wrong while running the agent.'
+          text: error.message || 'The agent run failed.'
         }
       ]);
       setStage('collect_prompt');
@@ -203,121 +143,61 @@ export default function App() {
     }
   }
 
+  const suggestions = useMemo(() => ([
+    'Test the full loan workflow and explain each failed stage simply.',
+    'Check whether invalid customer onboarding data is rejected.',
+    'Review the payment flow and summarize validation issues for business users.'
+  ]), []);
+
   return (
-    <div className='min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-black px-4 py-8 text-white'>
-      <div className='mx-auto max-w-5xl'>
-        <div className='mb-6'>
-          <h1 className='text-3xl font-bold'>System Functional Evaluation Agent</h1>
-          <p className='mt-2 max-w-3xl text-gray-400'>
-            Configure the Swagger source and runtime metadata, then ask the agent to
-            evaluate the API. Results are presented in a human-friendly format.
-          </p>
-        </div>
+    <div className='min-h-screen bg-slate-100 text-slate-900'>
+      <div className='mx-auto grid min-h-screen max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[290px,1fr]'>
+        <ToolDrawer
+          health={health}
+          tools={tools}
+          agentBaseUrl={agentBaseUrl}
+          setAgentBaseUrl={setAgentBaseUrl}
+          postmanUrl={`${agentBaseUrl}/qa/postman-collection`}
+        />
 
-        <div className='rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur'>
-          <div className='mb-4 h-[620px] space-y-4 overflow-y-auto rounded-2xl bg-black/10 p-2'>
-            {messages.map((msg, i) => (
-              <div key={i}>
-                {msg.type === 'text' && (
-                  <div
-                    className={`max-w-[80%] whitespace-pre-line rounded-2xl p-3 ${
-                      msg.role === 'user'
-                        ? 'ml-auto bg-blue-600 text-white'
-                        : 'bg-gray-800 text-white'
-                    }`}
-                  >
-                    {msg.text}
-                  </div>
-                )}
+        <ChatShell
+          title='System Functional Evaluation Agent'
+          subtitle='Refactored to a conversation-first flow with config capture, prompt capture, human-friendly result cards, MCP-inspired tool registry, and Postman support.'
+          messages={messages}
+          composerValue={prompt}
+          onComposerChange={setPrompt}
+          onSend={() => handlePromptSubmit(prompt)}
+          loading={loading}
+          canSend={stage === 'collect_prompt' || stage === 'show_results'}
+          suggestions={suggestions}
+          onPickSuggestion={setPrompt}
+          renderMessage={(message) => {
+            if (message.type === 'config') {
+              return (
+                <ConfigCard
+                  component={message.component}
+                  config={config}
+                  setConfig={setConfig}
+                  onSubmit={handleConfigSubmit}
+                />
+              );
+            }
 
-                {msg.type === 'config_summary' && (
-                  <div className='ml-auto max-w-[80%] whitespace-pre-line rounded-2xl bg-blue-600 p-3 text-white'>
-                    {msg.text}
-                  </div>
-                )}
+            if (message.type === 'result') {
+              return <ExecutionSummary result={message.result} />;
+            }
 
-                {msg.type === 'config_form' && (
-                  <div className='max-w-[85%] rounded-2xl bg-white p-5 text-gray-900'>
-                    <div className='mb-4'>
-                      <div className='flex items-center justify-between text-sm text-gray-500'>
-                        <span>Agent Setup Wizard</span>
-                        <span>Step 1 of 2</span>
-                      </div>
-                      <div className='mt-2 h-2 rounded-full bg-gray-200'>
-                        <div className='h-2 w-1/2 rounded-full bg-indigo-500'></div>
-                      </div>
-                    </div>
+            if (message.type === 'summary') {
+              return <div className='whitespace-pre-line rounded-3xl bg-blue-600 px-4 py-3 text-sm text-white'>{message.text}</div>;
+            }
 
-                    <h3 className='text-xl font-bold'>{msg.component.title}</h3>
-                    <p className='mt-1 text-sm text-gray-500'>{msg.component.description}</p>
-
-                    <div className='mt-4 space-y-4'>
-                      <div>
-                        <label className='block text-sm font-medium'>API Base URL</label>
-                        <input
-                          className='mt-1 w-full rounded-xl border p-3'
-                          value={config.apiBaseUrl}
-                          onChange={(e) => setConfig({ ...config, apiBaseUrl: e.target.value })}
-                          placeholder='https://your-api-host.com'
-                        />
-                      </div>
-
-                      <div>
-                        <label className='block text-sm font-medium'>Swagger URL</label>
-                        <input
-                          className='mt-1 w-full rounded-xl border p-3'
-                          value={config.swaggerUrl}
-                          onChange={(e) => setConfig({ ...config, swaggerUrl: e.target.value })}
-                          placeholder='https://your-api-host.com/openapi.yaml'
-                        />
-                      </div>
-
-                      <div>
-                        <label className='block text-sm font-medium'>Max Routes</label>
-                        <input
-                          type='number'
-                          min='1'
-                          max='12'
-                          className='mt-1 w-full rounded-xl border p-3'
-                          value={config.maxRoutes}
-                          onChange={(e) => setConfig({ ...config, maxRoutes: e.target.value })}
-                        />
-                      </div>
-
-                      <button
-                        onClick={submitConfig}
-                        className='w-full rounded-xl bg-indigo-500 py-3 font-semibold text-white'
-                      >
-                        Next
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {msg.type === 'result_card' && <HumanFriendlyResult result={msg.result} />}
+            return (
+              <div className={`max-w-3xl whitespace-pre-line rounded-3xl px-4 py-3 text-sm shadow-sm ${message.role === 'user' ? 'ml-auto bg-slate-900 text-white' : 'bg-white text-slate-800'}`}>
+                {message.text}
               </div>
-            ))}
-          </div>
-
-          {(stage === 'collect_prompt' || stage === 'show_results' || stage === 'running') && (
-            <div className='flex'>
-              <input
-                className='flex-1 rounded-l-xl bg-gray-800 p-3 text-white outline-none'
-                placeholder='Ask the agent what to evaluate...'
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                disabled={loading}
-              />
-              <button
-                onClick={submitPrompt}
-                disabled={loading}
-                className='rounded-r-xl bg-blue-600 px-4 text-white disabled:bg-blue-300'
-              >
-                {loading ? 'Running...' : 'Send'}
-              </button>
-            </div>
-          )}
-        </div>
+            );
+          }}
+        />
       </div>
     </div>
   );
