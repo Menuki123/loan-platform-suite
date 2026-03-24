@@ -24,7 +24,8 @@ async function loadRoutes(swaggerSource) {
         description: config.description || config.summary || '',
         parameters: config.parameters || [],
         requestBody: config.requestBody || null,
-        tags: config.tags || []
+        tags: config.tags || [],
+        operationId: config.operationId || `${method}_${routePath}`.replace(/[^a-zA-Z0-9_]/g, '_')
       });
     }
   }

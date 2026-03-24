@@ -1,23 +1,27 @@
 const promptTemplates = [
   {
     id: 'workflow-validation',
-    title: 'Full workflow validation',
-    prompt: 'Validate the full loan application workflow from customer onboarding to loan disbursement. Explain failures in simple business language.'
+    name: 'Workflow validation',
+    description: 'Checks full loan workflow progression and explains stage failures clearly.',
+    prompt: 'Validate the full LOS application workflow from draft to disbursal. Explain any failure in simple business language and highlight which endpoints were involved.'
   },
   {
-    id: 'required-fields',
-    title: 'Required fields and validation',
-    prompt: 'Check whether required fields and business validations are enforced when creating customers and loans. Summarize the result clearly.'
+    id: 'form-validation',
+    name: 'Form validation',
+    description: 'Focuses on missing required fields and validation feedback.',
+    prompt: 'Test the LOS application form and identify required field validations, input mistakes, and user-friendly remediation steps.'
   },
   {
-    id: 'large-json-form',
-    title: 'Large JSON application form',
-    prompt: 'Test whether the application form and related endpoints can accept large JSON sections and explain the outcome for a non-technical audience.'
+    id: 'large-json',
+    name: 'Large JSON structure',
+    description: 'Checks how the system handles large application-form section payloads.',
+    prompt: 'Test whether the system can accept large JSON application sections without breaking validation or workflow behaviour. Summarize the outcome for business users.'
   },
   {
-    id: 'duplicate-loan-rules',
-    title: 'Duplicate loan policy',
-    prompt: 'Verify that the system blocks duplicate active loans for the same product and explain the decision path.'
+    id: 'smoke-test',
+    name: 'Smoke test',
+    description: 'Runs a short essential route check using a small route budget.',
+    prompt: 'Run a smoke test on the most important LOS routes and tell me whether the environment is safe for a demo.'
   }
 ];
 

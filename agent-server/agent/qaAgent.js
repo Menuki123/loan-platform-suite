@@ -4,10 +4,20 @@ const { buildDependencyGraph } = require('../services/dependencyGraph');
 const { generatePayload } = require('../tools/payloadGenerator');
 const { invokeApi } = require('../tools/apiInvoker');
 const { evaluateResponse } = require('../tools/evaluator');
+const { toolRegistry } = require('../config/toolRegistry');
+const { promptTemplates } = require('../config/promptTemplates');
 
-async function runAgent({ prompt, apiBaseUrl, swaggerSource, maxRoutes, responseMode = 'table' }) {
+function buildBusinessSummary(failed) {
+  return {
+    overview: 'The AI agent collected metadata, selected relevant API operations, executed a guided evaluation, and converted the technical output into a business-friendly summary.',
+    result: failed > 0 ? 'Some routes did not behave as expected during the conversation-driven evaluation.' : 'The selected routes behaved correctly during the conversation-driven evaluation.',
+    impact: failed > 0 ? 'Business users may face validation, workflow, or integration issues. The failing routes should be reviewed before wider rollout.' : 'The current flow appears stable for the tested scenario and is suitable for demo or stakeholder review.',
+    finalVerdict: failed > 0 ? 'FAIL' : 'PASS'
+  };
+}
+
+async function runAgent({ prompt, apiBaseUrl, swaggerSource, maxRoutes }) {
   const routes = await loadRoutes(swaggerSource);
-
   const selectedRoutes = await selectRoutes(prompt, routes, maxRoutes);
   const dependencyGraph = buildDependencyGraph(selectedRoutes);
   const results = [];
@@ -22,8 +32,7 @@ async function runAgent({ prompt, apiBaseUrl, swaggerSource, maxRoutes, response
       route: `${route.method} ${route.path}`,
       payload,
       response,
-      evaluation,
-      tagSummary: route.tags?.join(', ') || 'General'
+      evaluation
     });
   }
 
@@ -34,30 +43,12 @@ async function runAgent({ prompt, apiBaseUrl, swaggerSource, maxRoutes, response
   const keyFindings = results.map(r => ({
     route: r.route,
     result: r.evaluation.result,
-    reason: r.evaluation.reason || 'No reason provided',
-    statusCode: r.response?.status ?? 'N/A'
+    reason: r.evaluation.reason || 'No reason provided'
   }));
-
-  const executionContext = {
-    apiBaseUrl,
-    swaggerSource,
-    maxRoutes,
-    responseMode,
-    selectedRoutes: selectedRoutes.map(r => `${r.method} ${r.path}`)
-  };
-
-  const decision = failed > 0 ? 'FAIL' : 'PASS';
-  const outcomeSentence = failed > 0
-    ? 'Some parts of the system did not behave as expected.'
-    : 'The system behaved correctly for the tested scenario.';
 
   return {
     status: 'success',
-    agent: {
-      title: 'System Functional Evaluation Agent',
-      mode: 'conversation',
-      protocol: 'MCP-inspired tool orchestration'
-    },
+    mode: 'conversation-first',
     selectedRouteCount: selectedRoutes.length,
     dependencyGraph,
     results,
@@ -68,28 +59,37 @@ async function runAgent({ prompt, apiBaseUrl, swaggerSource, maxRoutes, response
       reviewed,
       keyFindings
     },
-    decision,
-    userSummary: {
-      overview: 'The agent read the API description, selected the most relevant routes, generated sample payloads, executed the API calls, and translated the outcome into human-friendly language.',
-      result: outcomeSentence,
-      impact: failed > 0
-        ? 'There may be workflow, validation, or integration issues that should be reviewed before release.'
-        : 'The tested path is behaving in line with the expected business rules.',
-      finalVerdict: decision
+    decision: failed > 0 ? 'FAIL' : 'PASS',
+    llmReasoning: {
+      description: failed > 0
+        ? 'The AI agent interpreted the prompt, selected relevant endpoints from the Swagger specification, generated test payloads, executed the endpoints, and found at least one route that did not satisfy the expected business or validation behaviour.'
+        : 'The AI agent interpreted the prompt, selected relevant endpoints from the Swagger specification, generated test payloads, executed the endpoints, and all selected routes matched the expected business and validation behaviour.'
     },
-    responseModes: {
-      active: responseMode,
-      supported: ['table', 'list', 'visual']
+    userSummary: buildBusinessSummary(failed),
+    executionContext: {
+      apiBaseUrl,
+      swaggerSource,
+      maxRoutes,
+      selectedRoutes: selectedRoutes.map(r => `${r.method} ${r.path}`)
     },
-    executionContext,
-    toolEvents: [
-      { tool: 'configCaptureComponent', state: 'completed' },
-      { tool: 'swaggerRouteDiscovery', state: 'completed' },
-      { tool: 'payloadGenerator', state: 'completed' },
-      { tool: 'apiInvoker', state: 'completed' },
-      { tool: 'responseEvaluator', state: 'completed' },
-      { tool: 'resultRenderer', state: 'completed' }
-    ]
+    testInputs: results.map(r => ({ route: r.route, payload: r.payload })),
+    mcp: {
+      enabled: true,
+      registryMode: 'discovery',
+      availableTools: toolRegistry.map(tool => ({
+        id: tool.id,
+        name: tool.name,
+        category: tool.category,
+        mcpReady: tool.mcpReady
+      }))
+    },
+    promptRecommendations: promptTemplates.slice(0, 3),
+    humanFriendlyComponent: {
+      type: 'execution_summary_card',
+      title: 'AI Agent Execution Summary',
+      decision: failed > 0 ? 'FAIL' : 'PASS',
+      subtitle: 'Conversation-mode result generated from selected routes and business-friendly explanations.'
+    }
   };
 }
 

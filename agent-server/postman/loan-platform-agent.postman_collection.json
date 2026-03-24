@@ -1,45 +1,51 @@
 {
   "info": {
-    "name": "Loan Platform Agent Collection",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Postman collection for the System Functional Evaluation Agent demo."
+    "name": "Loan Platform AI Agent Collection",
+    "description": "Postman collection for the MCP-inspired AI agent server and LOS API integration.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "Health - API Server",
+      "name": "Agent Bootstrap",
       "request": {
         "method": "GET",
         "url": {
-          "raw": "{{apiBaseUrl}}/health",
-          "host": ["{{apiBaseUrl}}"],
-          "path": ["health"]
-        }
-      }
-    },
-    {
-      "name": "Health - Agent Server",
-      "request": {
-        "method": "GET",
-        "url": {
-          "raw": "{{agentBaseUrl}}/health",
-          "host": ["{{agentBaseUrl}}"],
-          "path": ["health"]
-        }
-      }
-    },
-    {
-      "name": "Bootstrap Conversation",
-      "request": {
-        "method": "GET",
-        "url": {
-          "raw": "{{agentBaseUrl}}/qa/bootstrap",
-          "host": ["{{agentBaseUrl}}"],
+          "raw": "http://localhost:4000/qa/bootstrap",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "4000",
           "path": ["qa", "bootstrap"]
         }
       }
     },
     {
-      "name": "Run QA Agent",
+      "name": "MCP Tools",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:4000/mcp/tools",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "4000",
+          "path": ["mcp", "tools"]
+        }
+      }
+    },
+    {
+      "name": "Prompt Templates",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:4000/prompts/templates",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "4000",
+          "path": ["prompts", "templates"]
+        }
+      }
+    },
+    {
+      "name": "Run Agent",
       "request": {
         "method": "POST",
         "header": [
@@ -47,19 +53,16 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"prompt\": \"Validate the full loan application workflow and explain failures simply\",\n  \"apiBaseUrl\": \"{{apiBaseUrl}}\",\n  \"swaggerUrl\": \"{{swaggerUrl}}\",\n  \"maxRoutes\": 4,\n  \"responseMode\": \"table\"\n}"
+          "raw": "{\n  \"prompt\": \"Validate the LOS application form and explain failures clearly\",\n  \"apiBaseUrl\": \"http://localhost:3000\",\n  \"swaggerUrl\": \"http://localhost:3000/openapi.yaml\",\n  \"maxRoutes\": 4\n}"
         },
         "url": {
-          "raw": "{{agentBaseUrl}}/qa/run",
-          "host": ["{{agentBaseUrl}}"],
+          "raw": "http://localhost:4000/qa/run",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "4000",
           "path": ["qa", "run"]
         }
       }
     }
-  ],
-  "variable": [
-    { "key": "apiBaseUrl", "value": "http://localhost:3000" },
-    { "key": "agentBaseUrl", "value": "http://localhost:4000" },
-    { "key": "swaggerUrl", "value": "http://localhost:3000/openapi.yaml" }
   ]
 }
