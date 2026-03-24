@@ -1,122 +1,100 @@
 require('dotenv').config();
-const fs = require('fs');
-const path = require('path');
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const { runAgent } = require('./agent/qaAgent');
-const { getToolRegistry } = require('./config/toolRegistry');
+const { toolRegistry, agentCatalog } = require('./config/toolRegistry');
+const { promptTemplates } = require('./config/promptTemplates');
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '2mb' }));
 
 app.get('/', (req, res) => {
   res.json({
     status: 'success',
-    message: 'Agent server is running',
+    service: 'agent-server',
+    message: 'System Functional Evaluation Agent server is running',
     endpoints: {
       health: 'GET /health',
-      bootstrap: 'GET /qa/bootstrap',
+      agents: 'GET /agents/catalog',
       tools: 'GET /mcp/tools',
+      prompts: 'GET /prompts/templates',
+      bootstrap: 'GET /qa/bootstrap',
       run: 'POST /qa/run',
-      postmanCollection: 'GET /qa/postman-collection'
+      postman: 'GET /qa/postman-collection'
     }
   });
 });
 
 app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    service: 'agent-server'
-  });
+  res.json({ status: 'ok', service: 'agent-server' });
+});
+
+app.get('/agents/catalog', (req, res) => {
+  res.json({ status: 'success', items: agentCatalog });
 });
 
 app.get('/mcp/tools', (req, res) => {
   res.json({
     status: 'success',
-    protocol: 'mcp-inspired-tool-registry',
-    tools: getToolRegistry()
+    protocol: 'MCP-inspired registry',
+    tools: toolRegistry
   });
+});
+
+app.get('/prompts/templates', (req, res) => {
+  res.json({ status: 'success', items: promptTemplates });
 });
 
 app.get('/qa/bootstrap', (req, res) => {
   res.json({
     status: 'success',
     stage: 'collect_meta',
-    conversationMode: true,
+    agent: agentCatalog[0],
     component: {
       type: 'config_form',
-      title: 'System Functional Evaluation Agent',
-      description: 'Provide API and Swagger metadata first. After that, the agent will ask for the testing prompt.',
+      title: 'Execution Configuration',
+      description: 'Capture Swagger URL and runtime metadata before the conversation continues.',
       fields: [
-        {
-          key: 'apiBaseUrl',
-          label: 'API Base URL',
-          type: 'text',
-          required: true,
-          placeholder: 'http://localhost:3000',
-          defaultValue: 'http://localhost:3000'
-        },
-        {
-          key: 'swaggerUrl',
-          label: 'Swagger URL',
-          type: 'text',
-          required: true,
-          placeholder: 'http://localhost:3000/openapi.yaml',
-          defaultValue: 'http://localhost:3000/openapi.yaml'
-        },
-        {
-          key: 'maxRoutes',
-          label: 'Max Routes',
-          type: 'number',
-          required: true,
-          defaultValue: 4
-        }
-      ],
-      promptSuggestions: [
-        'Test the full loan workflow and explain each failed stage simply.',
-        'Check whether the system blocks invalid customer onboarding data.',
-        'Review the payment flow and summarize any validation issues for business users.'
+        { key: 'apiBaseUrl', label: 'API Base URL', type: 'text', required: true, placeholder: 'http://localhost:3000' },
+        { key: 'swaggerUrl', label: 'Swagger URL', type: 'text', required: true, placeholder: 'http://localhost:3000/openapi.yaml' },
+        { key: 'maxRoutes', label: 'Max Routes', type: 'number', required: true, defaultValue: 4 },
+        { key: 'responseMode', label: 'Response Mode', type: 'select', required: true, options: ['table', 'list', 'visual'], defaultValue: 'table' }
       ]
-    }
+    },
+    capabilities: [
+      'Reads Swagger/OpenAPI from URL or local path',
+      'Uses MCP-style tool registry and prompt templates',
+      'Runs the agent in conversation mode',
+      'Shows results in table, list, or visual format',
+      'Supports Postman for manual verification'
+    ]
   });
 });
 
 app.get('/qa/postman-collection', (req, res) => {
   const filePath = path.join(__dirname, 'postman', 'loan-platform-agent.postman_collection.json');
-  const content = fs.readFileSync(filePath, 'utf8');
-  res.setHeader('Content-Type', 'application/json');
-  res.send(content);
-});
-
-app.get('/qa/run', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'Use POST /qa/run with JSON body. You can also inspect GET /qa/bootstrap first.'
-  });
+  const raw = fs.readFileSync(filePath, 'utf8');
+  res.type('application/json').send(raw);
 });
 
 app.post('/qa/run', async (req, res) => {
   try {
     const swaggerSource = req.body.swaggerUrl || req.body.swaggerPath || '../api-server/openapi.yaml';
-
-    console.log('[AGENT] Incoming prompt:', req.body.prompt);
-    console.log('[AGENT] API Base URL:', req.body.apiBaseUrl);
-    console.log('[AGENT] Swagger Source:', swaggerSource);
-    console.log('[AGENT] Max Routes:', req.body.maxRoutes);
-
     const result = await runAgent({
-      prompt: req.body.prompt,
+      prompt: req.body.prompt || 'Validate the exposed API and explain the outcome clearly.',
       apiBaseUrl: req.body.apiBaseUrl || 'http://localhost:3000',
       swaggerSource,
-      maxRoutes: Number(req.body.maxRoutes || 6),
-      conversationMode: req.body.conversationMode !== false
+      maxRoutes: Number(req.body.maxRoutes || 4),
+      responseMode: req.body.responseMode || 'table'
     });
 
     res.json(result);
   } catch (error) {
-    console.error('[AGENT] Error:', error.message);
-    res.status(500).json({ status: 'error', message: error.message });
+    console.error('[AGENT] Error:', error);
+    res.status(500).json({ status: 'error', message: error.message || 'Agent execution failed' });
   }
 });
 

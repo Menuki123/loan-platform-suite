@@ -1,25 +1,45 @@
 {
   "info": {
-    "name": "Loan Platform Agent API",
+    "name": "Loan Platform Agent Collection",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Postman collection for the agent bootstrap flow, agent run endpoint, and loan platform API smoke tests."
+    "description": "Postman collection for the System Functional Evaluation Agent demo."
   },
-  "variable": [
-    { "key": "agentBaseUrl", "value": "http://localhost:4000" },
-    { "key": "apiBaseUrl", "value": "http://localhost:3000" },
-    { "key": "swaggerUrl", "value": "http://localhost:3000/openapi.yaml" }
-  ],
   "item": [
     {
-      "name": "Agent Bootstrap",
+      "name": "Health - API Server",
       "request": {
         "method": "GET",
-        "header": [],
-        "url": "{{agentBaseUrl}}/qa/bootstrap"
+        "url": {
+          "raw": "{{apiBaseUrl}}/health",
+          "host": ["{{apiBaseUrl}}"],
+          "path": ["health"]
+        }
       }
     },
     {
-      "name": "Run Agent",
+      "name": "Health - Agent Server",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{agentBaseUrl}}/health",
+          "host": ["{{agentBaseUrl}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Bootstrap Conversation",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{agentBaseUrl}}/qa/bootstrap",
+          "host": ["{{agentBaseUrl}}"],
+          "path": ["qa", "bootstrap"]
+        }
+      }
+    },
+    {
+      "name": "Run QA Agent",
       "request": {
         "method": "POST",
         "header": [
@@ -27,26 +47,19 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"prompt\": \"Test the full loan workflow and explain failures simply\",\n  \"apiBaseUrl\": \"{{apiBaseUrl}}\",\n  \"swaggerUrl\": \"{{swaggerUrl}}\",\n  \"maxRoutes\": 4,\n  \"conversationMode\": true\n}"
+          "raw": "{\n  \"prompt\": \"Validate the full loan application workflow and explain failures simply\",\n  \"apiBaseUrl\": \"{{apiBaseUrl}}\",\n  \"swaggerUrl\": \"{{swaggerUrl}}\",\n  \"maxRoutes\": 4,\n  \"responseMode\": \"table\"\n}"
         },
-        "url": "{{agentBaseUrl}}/qa/run"
-      }
-    },
-    {
-      "name": "Loan API Health",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{apiBaseUrl}}/health"
-      }
-    },
-    {
-      "name": "Loan API Swagger",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{swaggerUrl}}"
+        "url": {
+          "raw": "{{agentBaseUrl}}/qa/run",
+          "host": ["{{agentBaseUrl}}"],
+          "path": ["qa", "run"]
+        }
       }
     }
+  ],
+  "variable": [
+    { "key": "apiBaseUrl", "value": "http://localhost:3000" },
+    { "key": "agentBaseUrl", "value": "http://localhost:4000" },
+    { "key": "swaggerUrl", "value": "http://localhost:3000/openapi.yaml" }
   ]
 }
