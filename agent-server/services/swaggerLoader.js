@@ -29,7 +29,14 @@ async function loadRoutes(swaggerSource) {
     }
   }
 
-  return routes;
+  return {
+    routes,
+    meta: {
+      title: api.info?.title || 'Unknown API',
+      version: api.info?.version || 'unknown',
+      source: sourceToLoad
+    }
+  };
 }
 
-module.exports = { loadRoutes };
+module.exports = { loadRoutes, isHttpUrl };

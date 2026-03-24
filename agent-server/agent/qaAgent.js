@@ -5,96 +5,105 @@ const { generatePayload } = require('../tools/payloadGenerator');
 const { invokeApi } = require('../tools/apiInvoker');
 const { evaluateResponse } = require('../tools/evaluator');
 
-async function runAgent({ prompt, apiBaseUrl, swaggerSource, maxRoutes }) {
-    const routes = await loadRoutes(swaggerSource);
-    console.log('[AGENT] Loaded routes:', routes.length);
+function buildAssistantNarrative({ failed, reviewed }) {
+  if (failed > 0) {
+    return 'The agent reviewed the requested flow, executed the selected routes, and found at least one behavior that did not match the expected validation or business rules.';
+  }
 
-    const selectedRoutes = await selectRoutes(prompt, routes, maxRoutes);
-    console.log(
-        '[AGENT] Selected routes:',
-        selectedRoutes.map(r => `${r.method} ${r.path}`)
-    );
+  if (reviewed > 0) {
+    return 'The agent executed the selected routes successfully, but some responses should still be reviewed manually because the outcome was not fully conclusive.';
+  }
 
-    const dependencyGraph = buildDependencyGraph(selectedRoutes);
-    const results = [];
+  return 'The agent executed the selected routes and the observed behavior matched the expected validation and workflow rules for the tested scenario.';
+}
 
-    for (const route of selectedRoutes) {
-        const schema = route.requestBody?.content?.['application/json']?.schema;
-        const payload = generatePayload(schema);
+async function runAgent({ prompt, apiBaseUrl, swaggerSource, maxRoutes, conversationMode = true }) {
+  const { routes, meta } = await loadRoutes(swaggerSource);
+  console.log('[AGENT] Loaded routes:', routes.length);
 
-        console.log('[AGENT] Executing:', route.method, route.path);
-        console.log('[AGENT] Payload:', JSON.stringify(payload, null, 2));
+  const selectedRoutes = await selectRoutes(prompt, routes, maxRoutes);
+  console.log('[AGENT] Selected routes:', selectedRoutes.map(r => `${r.method} ${r.path}`));
 
-        const response = await invokeApi(apiBaseUrl, route, payload);
-        console.log('[AGENT] Response:', JSON.stringify(response, null, 2));
+  const dependencyGraph = buildDependencyGraph(selectedRoutes);
+  const results = [];
 
-        const evaluation = await evaluateResponse(route, response);
-        console.log('[AGENT] Evaluation:', JSON.stringify(evaluation, null, 2));
+  for (const route of selectedRoutes) {
+    const schema = route.requestBody?.content?.['application/json']?.schema;
+    const payload = generatePayload(schema);
 
-        results.push({
-            route: `${route.method} ${route.path}`,
-            payload,
-            response,
-            evaluation
-        });
-    }
+    console.log('[AGENT] Executing:', route.method, route.path);
 
-    const passed = results.filter(r => r.evaluation.result === 'PASS').length;
-    const failed = results.filter(r => r.evaluation.result === 'FAIL').length;
-    const reviewed = results.filter(r => r.evaluation.result === 'REVIEW').length;
+    const response = await invokeApi(apiBaseUrl, route, payload);
+    const evaluation = await evaluateResponse(route, response);
 
-    const keyFindings = results.map(r => ({
-        route: r.route,
-        result: r.evaluation.result,
-        reason: r.evaluation.reason || 'No reason provided'
-    }));
+    results.push({
+      route: `${route.method} ${route.path}`,
+      payload,
+      response,
+      evaluation
+    });
+  }
 
-    const testInputs = results.map(r => ({
-        route: r.route,
-        payload: r.payload
-    }));
+  const passed = results.filter(r => r.evaluation.result === 'PASS').length;
+  const failed = results.filter(r => r.evaluation.result === 'FAIL').length;
+  const reviewed = results.filter(r => r.evaluation.result === 'REVIEW').length;
 
-    const executionContext = {
-        apiBaseUrl,
-        swaggerSource,
-        maxRoutes,
-        selectedRoutes: selectedRoutes.map(r => `${r.method} ${r.path}`)
-    };
+  const keyFindings = results.map(r => ({
+    route: r.route,
+    result: r.evaluation.result,
+    reason: r.evaluation.reason || 'No reason provided'
+  }));
 
-    return {
-        status: 'success',
-        selectedRouteCount: selectedRoutes.length,
-        dependencyGraph,
-        results,
-        summary: {
-            totalTests: results.length,
-            passed,
-            failed,
-            reviewed,
-            keyFindings
-        },
-        decision: failed > 0 ? 'FAIL' : 'PASS',
-        llmReasoning: {
-            description:
-                failed > 0
-                    ? 'The agent interpreted the prompt, selected relevant endpoints from the Swagger specification, generated dummy payloads, executed the endpoints, and compared actual responses against expected validation and business-rule behavior. At least one response did not match expectations, so the scenario failed.'
-                    : 'The agent interpreted the prompt, selected relevant endpoints from the Swagger specification, generated dummy payloads, executed the endpoints, and compared actual responses against expected validation and business-rule behavior. All responses matched expectations, so the scenario passed.'
-        },
-        userSummary: {
-            overview: 'A simplified explanation of the executed test scenario for a non-technical audience.',
-            result:
-                failed > 0
-                    ? 'Some parts of the system did not behave as expected.'
-                    : 'The system behaved correctly for the tested scenario.',
-            impact:
-                failed > 0
-                    ? 'There may be missing validations or incorrect business logic that should be reviewed.'
-                    : 'The system correctly enforces its expected rules and workflows.',
-            finalVerdict: failed > 0 ? 'FAIL' : 'PASS'
-        },
-        executionContext,
-        testInputs
-    };
+  const userVerdict = failed > 0 ? 'FAIL' : reviewed > 0 ? 'REVIEW' : 'PASS';
+  const overview = conversationMode
+    ? 'Conversation mode completed. The agent first accepted setup metadata, then executed the requested API checks, and now returns a human-friendly summary.'
+    : 'The agent executed the requested API checks and returned a human-friendly summary.';
+
+  return {
+    status: 'success',
+    mode: conversationMode ? 'conversation' : 'direct',
+    selectedRouteCount: selectedRoutes.length,
+    dependencyGraph,
+    results,
+    summary: {
+      totalTests: results.length,
+      passed,
+      failed,
+      reviewed,
+      keyFindings
+    },
+    decision: userVerdict,
+    llmReasoning: {
+      description: buildAssistantNarrative({ failed, reviewed })
+    },
+    userSummary: {
+      overview,
+      result:
+        userVerdict === 'FAIL'
+          ? 'Some parts of the system did not behave as expected.'
+          : userVerdict === 'REVIEW'
+            ? 'The main flow ran, but some responses still need manual review.'
+            : 'The tested scenario behaved correctly.',
+      impact:
+        userVerdict === 'FAIL'
+          ? 'There may be missing validations, incorrect workflow handling, or endpoint issues that should be fixed before release.'
+          : userVerdict === 'REVIEW'
+            ? 'The feature is partly validated, but a few behaviors need closer confirmation before sign-off.'
+            : 'The tested feature appears ready for demonstration or further regression coverage.',
+      finalVerdict: userVerdict
+    },
+    executionContext: {
+      apiBaseUrl,
+      swaggerSource,
+      maxRoutes,
+      selectedRoutes: selectedRoutes.map(r => `${r.method} ${r.path}`),
+      apiSpec: meta
+    },
+    testInputs: results.map(r => ({
+      route: r.route,
+      payload: r.payload
+    }))
+  };
 }
 
 module.exports = { runAgent };
