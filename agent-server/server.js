@@ -53,13 +53,14 @@ app.get('/qa/bootstrap', (req, res) => {
     stage: 'collect_meta',
     component: {
       type: 'config_form',
-      title: 'LOS Agent Configuration',
-      description: 'Capture Swagger URL and runtime metadata before the AI agent asks for a prompt.',
+      title: 'System Evaluation Configuration',
+      description: 'Capture Swagger URL and runtime metadata before the QA agent asks for the evaluation prompt.',
       fields: [
         { key: 'apiBaseUrl', label: 'API Base URL', type: 'text', required: true, placeholder: 'https://your-api-host.com' },
         { key: 'swaggerUrl', label: 'Swagger URL', type: 'text', required: true, placeholder: 'https://your-api-host.com/openapi.yaml' },
         { key: 'maxRoutes', label: 'Max Routes', type: 'number', required: true, defaultValue: 4 },
-        { key: 'environment', label: 'Environment', type: 'select', required: true, options: ['local', 'uat', 'qa', 'prod-safe'], defaultValue: 'local' }
+        { key: 'environment', label: 'Environment', type: 'select', required: true, options: ['local', 'uat', 'qa', 'prod-safe'], defaultValue: 'local' },
+        { key: 'responseMode', label: 'Response Mode', type: 'select', required: true, options: ['cards', 'list', 'table'], defaultValue: 'cards' }
       ]
     },
     nextStep: 'collect_prompt',
@@ -76,7 +77,8 @@ app.post('/qa/run', async (req, res) => {
       prompt: req.body.prompt,
       apiBaseUrl: req.body.apiBaseUrl || 'http://localhost:3000',
       swaggerSource,
-      maxRoutes: Number(req.body.maxRoutes || 6)
+      maxRoutes: Number(req.body.maxRoutes || 6),
+      responseMode: req.body.responseMode || 'cards'
     });
 
     res.json(result);

@@ -1,136 +1,50 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-const agentBaseDefault = import.meta.env.VITE_AGENT_BASE_URL || 'http://localhost:4000';
+const agentBase = import.meta.env.VITE_AGENT_BASE_URL || 'http://localhost:4000';
 const apiBaseDefault = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
-const defaultInstructions = `You are an AI Agent Orchestrator for LOS and enterprise workflows.
+const initialConfig = {
+  apiBaseUrl: apiBaseDefault,
+  swaggerUrl: `${apiBaseDefault}/openapi.yaml`,
+  maxRoutes: 4,
+  environment: 'local',
+  responseMode: 'cards'
+};
 
-MAIN CONCEPT:
-- AI agents are the primary experience.
-- Every agent must work in conversation mode.
-- Before execution, the agent should capture configuration through a predefined UI component.
-- The agent should discover powerful tools through an MCP-ready registry.
-- The agent should recommend prompt templates and then execute the selected scenario.
-- The final response must be shown with a human-friendly result component.
-
-CONVERSATION FLOW:
-1. Show configuration tool automatically or after first message.
-2. Capture Swagger URL, API Base URL, environment, and max route depth.
-3. Ask the user for the prompt.
-4. Run the selected routes.
-5. Present route-level findings, business explanation, and technical details.
-`;
-
-function IconCircle({ label }) {
-  return <div className='flex h-10 w-10 items-center justify-center rounded-full bg-slate-700 text-sm font-bold text-white'>{label}</div>;
-}
-
-function SectionTitle({ title, subtitle }) {
+function SparkIcon() {
   return (
-    <div>
-      <h2 className='text-lg font-semibold text-slate-900'>{title}</h2>
-      {subtitle && <p className='mt-1 text-sm text-slate-500'>{subtitle}</p>}
+    <div className='flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-lg shadow-sm'>
+      ✧
     </div>
   );
 }
 
-function AgentCard({ agent, onOpen }) {
-  if (agent.type === 'create') {
-    return (
-      <button onClick={() => onOpen('builder')} className='agent-card flex min-h-[168px] flex-col items-center justify-center gap-4 text-center hover:border-slate-400'>
-        <div className='text-5xl text-slate-500'>＋</div>
-        <div>
-          <div className='text-xl font-semibold text-slate-700'>Create New Agent</div>
-          <div className='mt-1 text-sm text-slate-500'>{agent.summary}</div>
-        </div>
-      </button>
-    );
-  }
-
-  return (
-    <button onClick={() => onOpen('builder', agent)} className='agent-card flex min-h-[168px] flex-col justify-between text-left hover:border-slate-400'>
-      <div className='flex items-start gap-4'>
-        <IconCircle label={agent.name.charAt(0)} />
-        <div>
-          <div className='text-[15px] font-semibold text-slate-900'>{agent.name}</div>
-          <div className='mt-2 text-sm leading-6 text-slate-600'>{agent.summary}</div>
-          <div className='mt-4 text-xs text-slate-400'>Created: {agent.createdAt}</div>
-        </div>
-      </div>
-      <div className='mt-6 flex items-center gap-2 border-t border-slate-200 pt-3 text-xs font-medium text-slate-500'>
-        <span className='text-base'>🔧</span> {agent.toolCount} tools
-      </div>
-    </button>
-  );
+function AssistantBubble({ children }) {
+  return <div className='max-w-[980px] rounded-[28px] border border-slate-200 bg-white px-6 py-5 shadow-sm'>{children}</div>;
 }
 
-function ToolRow({ tool }) {
-  return (
-    <div className='flex items-start gap-4 rounded-3xl border border-slate-200 bg-white px-4 py-4'>
-      <div className='mt-0.5 flex h-11 w-11 items-center justify-center rounded-full bg-slate-700 text-white'>🔧</div>
-      <div className='min-w-0 flex-1'>
-        <div className='flex flex-wrap items-center gap-2'>
-          <div className='font-medium text-slate-900'>{tool.name}</div>
-          {tool.mcpReady && <span className='rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700'>MCP-ready</span>}
-          <span className='rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600'>{tool.category}</span>
-        </div>
-        <div className='mt-1 text-sm text-slate-500'>{tool.description}</div>
-      </div>
-      <button className='text-slate-400 transition hover:text-slate-700'>🗑</button>
-    </div>
-  );
+function UserBubble({ text }) {
+  return <div className='max-w-[70%] rounded-[24px] bg-black px-5 py-4 text-[15px] text-white shadow-sm'>{text}</div>;
 }
 
-function PromptPill({ prompt, onSelect }) {
+function CapabilityCard() {
   return (
-    <button onClick={() => onSelect(prompt.prompt)} className='rounded-full border border-slate-200 px-3 py-2 text-sm text-slate-600 transition hover:border-slate-400 hover:text-slate-900'>
-      {prompt.name}
-    </button>
-  );
-}
-
-function ResultCard({ result }) {
-  if (!result) {
-    return (
-      <div className='rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500'>
-        Run the conversation to show the human-friendly execution summary here.
-      </div>
-    );
-  }
-
-  return (
-    <div className='space-y-4 rounded-3xl border border-slate-200 bg-white p-5'>
-      <div className='flex items-center justify-between gap-3'>
-        <div>
-          <div className='text-lg font-semibold text-slate-900'>{result.humanFriendlyComponent?.title || 'Execution Summary'}</div>
-          <div className='mt-1 text-sm text-slate-500'>{result.humanFriendlyComponent?.subtitle}</div>
-        </div>
-        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${result.decision === 'PASS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-          {result.decision}
-        </span>
-      </div>
-      <div className='grid gap-3 md:grid-cols-3'>
-        <div className='rounded-2xl bg-slate-50 p-4'>
-          <div className='text-xs text-slate-500'>Total tests</div>
-          <div className='mt-2 text-2xl font-semibold text-slate-900'>{result.summary?.totalTests ?? 0}</div>
-        </div>
-        <div className='rounded-2xl bg-emerald-50 p-4'>
-          <div className='text-xs text-emerald-700'>Passed</div>
-          <div className='mt-2 text-2xl font-semibold text-emerald-800'>{result.summary?.passed ?? 0}</div>
-        </div>
-        <div className='rounded-2xl bg-rose-50 p-4'>
-          <div className='text-xs text-rose-700'>Failed</div>
-          <div className='mt-2 text-2xl font-semibold text-rose-800'>{result.summary?.failed ?? 0}</div>
-        </div>
-      </div>
-      <div className='space-y-3'>
-        {(result.summary?.keyFindings || []).map((item, idx) => (
-          <div key={`${item.route}-${idx}`} className='rounded-2xl border border-slate-200 p-4'>
-            <div className='flex items-start justify-between gap-3'>
-              <div className='font-medium text-slate-900'>{item.route}</div>
-              <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${item.result === 'PASS' ? 'bg-emerald-100 text-emerald-700' : item.result === 'FAIL' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>{item.result}</span>
-            </div>
-            <div className='mt-2 text-sm text-slate-500'>{item.reason}</div>
+    <div className='mx-auto mb-8 max-w-[1100px] rounded-[32px] border border-slate-200 bg-white/90 px-8 py-8 text-slate-700 shadow-sm'>
+      <div className='mb-4 text-center text-2xl'>💬</div>
+      <h1 className='text-center text-[34px] font-semibold tracking-tight text-slate-900'>System Functional Evaluation Agent</h1>
+      <p className='mx-auto mt-3 max-w-[860px] text-center text-[16px] leading-7 text-slate-600'>
+        A conversation-first QA agent that captures Swagger and runtime metadata through frontend tools, asks for the evaluation prompt, executes the process, and returns human-friendly results.
+      </p>
+      <div className='mt-6 grid gap-3 md:grid-cols-4'>
+        {[
+          ['Conversation mode', 'Chat-style experience with tool components inside the thread.'],
+          ['Config capture tool', 'Collect API Base URL, Swagger URL, route budget, and response mode.'],
+          ['Execution summary', 'Show cards, list, or table output instead of raw JSON by default.'],
+          ['Postman ready', 'Use the collection endpoint for backend testing and team demos.']
+        ].map(([title, body]) => (
+          <div key={title} className='rounded-[24px] bg-slate-50 px-4 py-4'>
+            <div className='font-semibold text-slate-900'>{title}</div>
+            <div className='mt-2 text-sm leading-6 text-slate-500'>{body}</div>
           </div>
         ))}
       </div>
@@ -138,312 +52,429 @@ function ResultCard({ result }) {
   );
 }
 
+function SuggestionPill({ text, onClick }) {
+  return (
+    <button onClick={() => onClick(text)} className='rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-left text-[15px] text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50'>
+      {text}
+    </button>
+  );
+}
+
+function ConfigToolCard({ config, setConfig, onSubmit }) {
+  return (
+    <AssistantBubble>
+      <div className='flex items-center justify-between gap-4'>
+        <div>
+          <div className='text-[18px] font-semibold text-slate-900'>System Evaluation Configuration</div>
+          <div className='mt-1 text-sm text-slate-500'>Capture Swagger URL and runtime metadata before the QA agent starts evaluating.</div>
+        </div>
+        <div className='text-sm text-slate-400'>Step 1 of 2</div>
+      </div>
+      <div className='mt-4 h-2 rounded-full bg-slate-100'>
+        <div className='h-2 w-1/2 rounded-full bg-violet-500'></div>
+      </div>
+      <div className='mt-6 grid gap-4 md:grid-cols-2'>
+        <label className='text-sm text-slate-700'>
+          API Base URL
+          <input className='mt-2 w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400' value={config.apiBaseUrl} onChange={e => setConfig(prev => ({ ...prev, apiBaseUrl: e.target.value }))} />
+        </label>
+        <label className='text-sm text-slate-700'>
+          Swagger URL
+          <input className='mt-2 w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400' value={config.swaggerUrl} onChange={e => setConfig(prev => ({ ...prev, swaggerUrl: e.target.value }))} />
+        </label>
+        <label className='text-sm text-slate-700'>
+          Max Routes
+          <input type='number' min='1' max='12' className='mt-2 w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400' value={config.maxRoutes} onChange={e => setConfig(prev => ({ ...prev, maxRoutes: e.target.value }))} />
+        </label>
+        <label className='text-sm text-slate-700'>
+          Environment
+          <select className='mt-2 w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400' value={config.environment} onChange={e => setConfig(prev => ({ ...prev, environment: e.target.value }))}>
+            {['local', 'uat', 'qa', 'prod-safe'].map(option => <option key={option} value={option}>{option}</option>)}
+          </select>
+        </label>
+        <label className='text-sm text-slate-700 md:col-span-2'>
+          Response Format
+          <div className='mt-2 grid gap-3 md:grid-cols-3'>
+            {['cards', 'list', 'table'].map(option => (
+              <button
+                type='button'
+                key={option}
+                onClick={() => setConfig(prev => ({ ...prev, responseMode: option }))}
+                className={`rounded-[18px] border px-4 py-3 text-sm font-medium capitalize transition ${config.responseMode === option ? 'border-violet-500 bg-violet-50 text-violet-700' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </label>
+      </div>
+      <div className='mt-6 flex items-center justify-between gap-4'>
+        <div className='text-sm text-slate-500'>Postman collection: <span className='font-mono text-slate-700'>{agentBase}/qa/postman-collection</span></div>
+        <button onClick={onSubmit} className='rounded-[18px] bg-violet-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-violet-600'>Continue</button>
+      </div>
+    </AssistantBubble>
+  );
+}
+
+function SummaryCards({ result }) {
+  return (
+    <div className='space-y-4'>
+      <div className='grid gap-3 md:grid-cols-3'>
+        <Metric title='Total Tests' value={result.summary?.totalTests ?? 0} />
+        <Metric title='Passed' value={result.summary?.passed ?? 0} tone='green' />
+        <Metric title='Failed' value={result.summary?.failed ?? 0} tone='red' />
+      </div>
+      <div className='space-y-3'>
+        {(result.summary?.keyFindings || []).map((finding, index) => (
+          <div key={`${finding.route}-${index}`} className='rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-4'>
+            <div className='flex items-start justify-between gap-3'>
+              <div className='font-medium text-slate-900'>{finding.route}</div>
+              <Badge result={finding.result} />
+            </div>
+            <div className='mt-2 text-sm leading-6 text-slate-500'>{finding.reason}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FindingsList({ result }) {
+  return (
+    <ul className='space-y-3'>
+      {(result.summary?.keyFindings || []).map((finding, index) => (
+        <li key={`${finding.route}-${index}`} className='rounded-[18px] border border-slate-200 px-4 py-3'>
+          <div className='flex items-center justify-between gap-3'>
+            <span className='font-medium text-slate-900'>{finding.route}</span>
+            <Badge result={finding.result} />
+          </div>
+          <p className='mt-2 text-sm text-slate-500'>{finding.reason}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function FindingsTable({ result }) {
+  return (
+    <div className='overflow-hidden rounded-[20px] border border-slate-200'>
+      <table className='min-w-full divide-y divide-slate-200 text-sm'>
+        <thead className='bg-slate-50'>
+          <tr>
+            <th className='px-4 py-3 text-left font-semibold text-slate-700'>Route</th>
+            <th className='px-4 py-3 text-left font-semibold text-slate-700'>Status</th>
+            <th className='px-4 py-3 text-left font-semibold text-slate-700'>Reason</th>
+          </tr>
+        </thead>
+        <tbody className='divide-y divide-slate-200 bg-white'>
+          {(result.summary?.keyFindings || []).map((finding, index) => (
+            <tr key={`${finding.route}-${index}`}>
+              <td className='px-4 py-3 text-slate-900'>{finding.route}</td>
+              <td className='px-4 py-3'><Badge result={finding.result} /></td>
+              <td className='px-4 py-3 text-slate-500'>{finding.reason}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Metric({ title, value, tone = 'default' }) {
+  const toneClasses = tone === 'green'
+    ? 'bg-emerald-50 text-emerald-800'
+    : tone === 'red'
+      ? 'bg-rose-50 text-rose-800'
+      : 'bg-slate-50 text-slate-900';
+
+  return (
+    <div className={`rounded-[20px] px-4 py-4 ${toneClasses}`}>
+      <div className='text-xs font-medium uppercase tracking-wide opacity-70'>{title}</div>
+      <div className='mt-2 text-3xl font-semibold'>{value}</div>
+    </div>
+  );
+}
+
+function Badge({ result }) {
+  const map = {
+    PASS: 'bg-emerald-100 text-emerald-700',
+    FAIL: 'bg-rose-100 text-rose-700',
+    REVIEW: 'bg-amber-100 text-amber-700'
+  };
+  return <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${map[result] || 'bg-slate-100 text-slate-700'}`}>{result}</span>;
+}
+
+function ResultToolCard({ result, responseMode }) {
+  return (
+    <AssistantBubble>
+      <div className='flex flex-wrap items-start justify-between gap-3'>
+        <div>
+          <div className='text-[18px] font-semibold text-slate-900'>Execution Summary</div>
+          <div className='mt-1 text-sm text-slate-500'>{result.userSummary?.overview}</div>
+        </div>
+        <div className='flex items-center gap-2'>
+          <span className='rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold capitalize text-slate-600'>{responseMode}</span>
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${result.decision === 'PASS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{result.decision}</span>
+        </div>
+      </div>
+      <p className='mt-4 text-sm leading-6 text-slate-600'>{result.userSummary?.result}</p>
+      <p className='mt-2 text-sm leading-6 text-slate-500'>{result.userSummary?.impact}</p>
+      <div className='mt-5'>
+        {responseMode === 'table' ? <FindingsTable result={result} /> : responseMode === 'list' ? <FindingsList result={result} /> : <SummaryCards result={result} />}
+      </div>
+      <details className='mt-5 rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3'>
+        <summary className='cursor-pointer text-sm font-semibold text-slate-700'>Technical details</summary>
+        <pre className='mt-3 overflow-auto rounded-[14px] bg-slate-900 p-4 text-xs text-slate-100'>{JSON.stringify(result, null, 2)}</pre>
+      </details>
+    </AssistantBubble>
+  );
+}
+
+function AssistantText({ text }) {
+  return (
+    <AssistantBubble>
+      <div className='text-[16px] leading-8 text-slate-700 whitespace-pre-line'>{text}</div>
+    </AssistantBubble>
+  );
+}
+
 export default function App() {
-  const [page, setPage] = useState('agents');
-  const [agentCatalog, setAgentCatalog] = useState([]);
-  const [tools, setTools] = useState([]);
-  const [promptTemplates, setPromptTemplates] = useState([]);
-  const [selectedAgent, setSelectedAgent] = useState(null);
-  const [search, setSearch] = useState('');
-  const [config, setConfig] = useState({
-    name: 'Application Form Validation Agent - LOS',
-    description: 'Conversation-first AI agent that captures Swagger metadata, recommends prompts, runs API validations, and summarizes the outcome in a human-friendly way.',
-    instructions: defaultInstructions,
-    conversationStarter: 'Help me validate a LOS workflow',
-    authUrl: '',
-    embedAgent: false,
-    apiBaseUrl: apiBaseDefault,
-    swaggerUrl: `${apiBaseDefault}/openapi.yaml`,
-    maxRoutes: 4,
-    environment: 'local'
-  });
-  const [prompt, setPrompt] = useState('Validate the LOS application form and explain failures clearly.');
-  const [result, setResult] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [config, setConfig] = useState(initialConfig);
+  const [configReady, setConfigReady] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [promptTemplates, setPromptTemplates] = useState([]);
+  const [showStarterPrompts, setShowStarterPrompts] = useState(true);
+  const scrollRef = useRef(null);
 
   useEffect(() => {
-    async function loadData() {
+    async function bootstrap() {
       try {
-        const [catalogRes, toolsRes, promptsRes] = await Promise.all([
-          fetch(`${agentBaseDefault}/agents/catalog`),
-          fetch(`${agentBaseDefault}/mcp/tools`),
-          fetch(`${agentBaseDefault}/prompts/templates`)
+        const [bootstrapRes, promptsRes] = await Promise.all([
+          fetch(`${agentBase}/qa/bootstrap`),
+          fetch(`${agentBase}/prompts/templates`)
         ]);
-
-        const catalogData = await catalogRes.json();
-        const toolsData = await toolsRes.json();
+        const bootstrapData = await bootstrapRes.json();
         const promptsData = await promptsRes.json();
 
-        setAgentCatalog(catalogData.agents || []);
-        setTools(toolsData.tools || []);
         setPromptTemplates(promptsData.prompts || []);
+        setMessages([
+          {
+            id: 'welcome',
+            role: 'assistant',
+            type: 'text',
+            text: 'Welcome. I can help evaluate your API through a guided conversation. First, please complete the configuration tool so I can understand your Swagger definition and runtime metadata.'
+          },
+          {
+            id: 'config-tool',
+            role: 'assistant',
+            type: 'config_form',
+            component: bootstrapData.component
+          }
+        ]);
       } catch (error) {
-        console.error('Failed to load agent metadata', error);
+        setMessages([
+          { id: 'welcome-fallback', role: 'assistant', type: 'text', text: 'Welcome. Please configure the API details below, then send the evaluation prompt.' },
+          { id: 'config-tool-fallback', role: 'assistant', type: 'config_form' }
+        ]);
       }
     }
 
-    loadData();
+    bootstrap();
   }, []);
 
-  const visibleAgents = useMemo(() => {
-    const text = search.trim().toLowerCase();
-    if (!text) return agentCatalog;
-    return agentCatalog.filter(agent => `${agent.name} ${agent.summary}`.toLowerCase().includes(text));
-  }, [agentCatalog, search]);
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [messages, loading]);
 
-  const openPage = (nextPage, agent = null) => {
-    setPage(nextPage);
-    if (agent) {
-      setSelectedAgent(agent);
-      setConfig(prev => ({
-        ...prev,
-        name: agent.name,
-        description: agent.summary
-      }));
-    }
+  const suggestionTexts = useMemo(() => {
+    const fromTemplates = promptTemplates.slice(0, 2).map(item => item.prompt);
+    return fromTemplates.length ? fromTemplates : [
+      'Run a smoke test on the most important LOS routes and tell me whether the environment is safe for a demo.',
+      'Validate the LOS application form and explain failures clearly.'
+    ];
+  }, [promptTemplates]);
+
+  const submitConfig = () => {
+    setConfigReady(true);
+    setMessages(prev => [
+      ...prev,
+      {
+        id: `config-summary-${Date.now()}`,
+        role: 'user',
+        type: 'text',
+        text: `API Base URL: ${config.apiBaseUrl}\nSwagger URL: ${config.swaggerUrl}\nMax Routes: ${config.maxRoutes}\nEnvironment: ${config.environment}\nResponse Format: ${config.responseMode}`
+      },
+      {
+        id: `assistant-ready-${Date.now()}`,
+        role: 'assistant',
+        type: 'text',
+        text: 'Great. Configuration is captured. Now tell me what you want me to evaluate.'
+      }
+    ]);
   };
 
-  const runConversation = async () => {
+  const handleSuggestion = text => {
+    setInput(text);
+    setShowStarterPrompts(false);
+  };
+
+  const ensureConfigReminder = () => {
+    setMessages(prev => {
+      if (prev.some(item => item.id === 'config-reminder')) return prev;
+      return [
+        ...prev,
+        { id: 'config-reminder', role: 'assistant', type: 'text', text: 'Before I run the evaluation, please complete the configuration tool in the conversation so I know which API and Swagger file to use.' }
+      ];
+    });
+  };
+
+  const sendMessage = async () => {
+    const trimmed = input.trim();
+    if (!trimmed || loading) return;
+
+    setShowStarterPrompts(false);
+
+    if (!configReady) {
+      setInput('');
+      ensureConfigReminder();
+      return;
+    }
+
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      type: 'text',
+      text: trimmed
+    };
+
+    setMessages(prev => [
+      ...prev,
+      userMessage,
+      {
+        id: `assistant-processing-${Date.now()}`,
+        role: 'assistant',
+        type: 'text',
+        text: 'Understood. I am analyzing the Swagger definition, selecting relevant routes, and running the evaluation now.'
+      }
+    ]);
+    setInput('');
     setLoading(true);
-    setMessage('');
-    setResult(null);
 
     try {
-      const response = await fetch(`${agentBaseDefault}/qa/run`, {
+      const response = await fetch(`${agentBase}/qa/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt,
+          prompt: trimmed,
           apiBaseUrl: config.apiBaseUrl,
           swaggerUrl: config.swaggerUrl,
-          maxRoutes: Number(config.maxRoutes)
+          maxRoutes: Number(config.maxRoutes),
+          environment: config.environment,
+          responseMode: config.responseMode
         })
       });
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Agent execution failed');
 
-      setResult(data);
-      setMessage('Conversation executed successfully. Human-friendly summary is ready.');
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `assistant-result-${Date.now()}`,
+          role: 'assistant',
+          type: 'result',
+          result: data
+        }
+      ]);
     } catch (error) {
-      setMessage(error.message || 'Execution failed');
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `assistant-error-${Date.now()}`,
+          role: 'assistant',
+          type: 'text',
+          text: error.message || 'Something went wrong while running the evaluation.'
+        }
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
+  const onComposerKeyDown = event => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  };
+
   return (
-    <div className='min-h-screen bg-[#f4f5f7] text-slate-900'>
-      <header className='border-b border-slate-200 bg-white'>
-        <div className='mx-auto flex max-w-[1500px] items-center justify-between gap-6 px-8 py-7'>
-          <div>
-            <div className='text-[34px] font-bold tracking-tight'>AI AGENTS</div>
-            <div className='mt-1 text-sm text-slate-400'>Discover, configure, and run conversation-first AI agents with MCP-ready tools.</div>
-          </div>
-          <div className='flex items-center gap-4'>
-            <div className='hidden rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 lg:flex lg:min-w-[320px] lg:items-center'>
-              <span className='mr-3 text-slate-400'>🔍</span>
-              <input value={search} onChange={e => setSearch(e.target.value)} className='w-full bg-transparent text-sm outline-none' placeholder='Search Agents' />
-            </div>
-            <div className='flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 via-cyan-400 to-indigo-500 text-white'>✦</div>
+    <div className='min-h-screen bg-[#f5f5f7] text-slate-900'>
+      <div className='mx-auto flex min-h-screen max-w-[1500px] flex-col px-6 py-7'>
+        <CapabilityCard />
+
+        <div ref={scrollRef} className='flex-1 overflow-y-auto rounded-[32px] px-2 pb-6'>
+          <div className='mx-auto max-w-[1480px] space-y-6'>
+            {messages.map(message => (
+              <div key={message.id} className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                {message.role === 'assistant' && <SparkIcon />}
+                <div className={`${message.role === 'assistant' ? 'max-w-[1120px]' : 'max-w-[70%]'}`}>
+                  {message.type === 'config_form' ? (
+                    <ConfigToolCard config={config} setConfig={setConfig} onSubmit={submitConfig} />
+                  ) : message.type === 'result' ? (
+                    <ResultToolCard result={message.result} responseMode={config.responseMode} />
+                  ) : message.role === 'user' ? (
+                    <UserBubble text={message.text} />
+                  ) : (
+                    <AssistantText text={message.text} />
+                  )}
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div className='flex justify-start gap-4'>
+                <SparkIcon />
+                <AssistantBubble>
+                  <div className='flex items-center gap-2 text-slate-500'>
+                    <span className='h-2.5 w-2.5 animate-pulse rounded-full bg-violet-400'></span>
+                    <span className='h-2.5 w-2.5 animate-pulse rounded-full bg-violet-400 [animation-delay:120ms]'></span>
+                    <span className='h-2.5 w-2.5 animate-pulse rounded-full bg-violet-400 [animation-delay:240ms]'></span>
+                    <span className='ml-2 text-sm'>Running evaluation...</span>
+                  </div>
+                </AssistantBubble>
+              </div>
+            )}
           </div>
         </div>
-        <div className='mx-auto flex max-w-[1500px] gap-3 px-8 pb-5'>
-          <button onClick={() => setPage('agents')} className={`rounded-full px-4 py-2 text-sm font-medium ${page === 'agents' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>Agents</button>
-          <button onClick={() => setPage('builder')} className={`rounded-full px-4 py-2 text-sm font-medium ${page === 'builder' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>Builder</button>
-          <button onClick={() => setPage('conversation')} className={`rounded-full px-4 py-2 text-sm font-medium ${page === 'conversation' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>Conversation Mode</button>
+
+        {showStarterPrompts && (
+          <div className='mt-4 grid gap-3 md:grid-cols-2'>
+            {suggestionTexts.map(text => <SuggestionPill key={text} text={text} onClick={handleSuggestion} />)}
+          </div>
+        )}
+
+        <div className='mt-4 rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm'>
+          <div className='min-h-[120px] rounded-[22px] bg-slate-50 px-4 py-4'>
+            <textarea
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={onComposerKeyDown}
+              placeholder='Send a message...'
+              className='h-[92px] w-full resize-none bg-transparent text-[16px] text-slate-700 outline-none placeholder:text-slate-400'
+            />
+          </div>
+          <div className='mt-3 flex items-center justify-between gap-3'>
+            <div className='text-sm text-slate-400'>Tip: complete the configuration tool first, then send your QA prompt.</div>
+            <div className='flex items-center gap-3'>
+              <button className='flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-lg text-slate-500 transition hover:bg-slate-50'>⌘</button>
+              <button onClick={sendMessage} className='flex h-10 w-10 items-center justify-center rounded-full bg-violet-300 text-xl text-white transition hover:bg-violet-400'>↑</button>
+            </div>
+          </div>
         </div>
-      </header>
-
-      <main className='mx-auto max-w-[1500px] px-8 py-8'>
-        {page === 'agents' && (
-          <section>
-            <div className='grid gap-6 md:grid-cols-2 xl:grid-cols-3'>
-              {visibleAgents.map(agent => <AgentCard key={agent.id} agent={agent} onOpen={openPage} />)}
-            </div>
-            <div className='mt-8 rounded-3xl border border-slate-200 bg-white p-6'>
-              <SectionTitle title='AI agents as the main concept' subtitle='This layout keeps agents, tools, prompts, MCP discovery, and conversation mode at the center of the experience.' />
-              <div className='mt-5 grid gap-4 lg:grid-cols-4'>
-                {[
-                  ['Conversation-first', 'Every agent should start by collecting metadata and then continue with prompts.'],
-                  ['Powerful tools', 'Tools are treated as reusable resources that agents can discover, invoke, and present in UI components.'],
-                  ['MCP-ready', 'Tool registry is exposed in an MCP-inspired format so the system can scale toward formal tool orchestration.'],
-                  ['Postman-compatible', 'The same flows can be exported for Postman and QA verification outside the UI.']
-                ].map(([title, text]) => (
-                  <div key={title} className='rounded-3xl bg-slate-50 p-5'>
-                    <div className='font-semibold text-slate-900'>{title}</div>
-                    <div className='mt-2 text-sm leading-6 text-slate-500'>{text}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {page === 'builder' && (
-          <section className='grid gap-6 xl:grid-cols-[1.02fr,0.98fr]'>
-            <div className='rounded-3xl border border-slate-200 bg-white p-6'>
-              <div className='mb-6 flex items-center justify-between gap-4'>
-                <div className='flex items-center gap-3'>
-                  <button onClick={() => setPage('agents')} className='text-2xl text-slate-500'>‹</button>
-                  <div className='text-[30px] font-semibold text-slate-900'>{selectedAgent?.name || config.name}</div>
-                </div>
-                <div className='flex items-center gap-3'>
-                  <button className='rounded-full bg-slate-700 px-5 py-3 text-sm font-semibold text-white'>Save as Template</button>
-                  <button className='rounded-full bg-slate-700 px-5 py-3 text-sm font-semibold text-white'>Update</button>
-                </div>
-              </div>
-
-              <div className='space-y-4'>
-                <label className='block text-sm text-slate-700'>
-                  Name
-                  <input className='form-input' value={config.name} onChange={e => setConfig(prev => ({ ...prev, name: e.target.value }))} />
-                </label>
-                <label className='block text-sm text-slate-700'>
-                  Description
-                  <input className='form-input' value={config.description} onChange={e => setConfig(prev => ({ ...prev, description: e.target.value }))} />
-                </label>
-                <label className='block text-sm text-slate-700'>
-                  Instructions
-                  <textarea className='form-input min-h-[220px]' value={config.instructions} onChange={e => setConfig(prev => ({ ...prev, instructions: e.target.value }))} />
-                </label>
-                <label className='block text-sm text-slate-700'>
-                  Conversation starters
-                  <input className='form-input' placeholder='Enter a conversation starter and press Enter' value={config.conversationStarter} onChange={e => setConfig(prev => ({ ...prev, conversationStarter: e.target.value }))} />
-                </label>
-                <label className='block text-sm text-slate-700'>
-                  Authentication URL
-                  <input className='form-input' placeholder='If your agent requires authentication, provide the URL here' value={config.authUrl} onChange={e => setConfig(prev => ({ ...prev, authUrl: e.target.value }))} />
-                </label>
-                <label className='mt-2 flex items-center gap-3 text-sm text-slate-700'>
-                  <input type='checkbox' checked={config.embedAgent} onChange={e => setConfig(prev => ({ ...prev, embedAgent: e.target.checked }))} />
-                  Embed agent
-                </label>
-              </div>
-            </div>
-
-            <div className='space-y-6'>
-              <div className='rounded-3xl border border-slate-200 bg-white p-6'>
-                <div className='mb-4 flex items-center justify-between'>
-                  <SectionTitle title='Resources' subtitle='Resources for your AGENT' />
-                  <button className='rounded-2xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600'>Add tool</button>
-                </div>
-                <div className='rounded-3xl border border-slate-200 bg-slate-50 p-4'>
-                  <div className='mb-4'>
-                    <div className='text-lg font-semibold text-slate-900'>Tools</div>
-                    <div className='text-sm text-slate-500'>Provide the agent with tools it can use to help users.</div>
-                  </div>
-                  <div className='space-y-4'>
-                    {tools.map(tool => <ToolRow key={tool.id} tool={tool} />)}
-                  </div>
-                </div>
-              </div>
-
-              <div className='rounded-3xl border border-slate-200 bg-white p-6'>
-                <SectionTitle title='Prompt packs' subtitle='Reusable prompt templates for AI agents' />
-                <div className='mt-4 flex flex-wrap gap-2'>
-                  {promptTemplates.map(template => <PromptPill key={template.id} prompt={template} onSelect={setPrompt} />)}
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {page === 'conversation' && (
-          <section className='grid gap-6 xl:grid-cols-[0.9fr,1.1fr]'>
-            <div className='space-y-6'>
-              <div className='rounded-3xl border border-slate-200 bg-white p-6'>
-                <SectionTitle title='Conversation-first setup' subtitle='The agent collects metadata first, then asks for the prompt, then executes with powerful tools.' />
-                <div className='mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-5'>
-                  <div className='mb-4 flex items-center justify-between text-sm text-slate-500'>
-                    <span>AI Agent Configuration Wizard</span>
-                    <span>Step 1 of 3</span>
-                  </div>
-                  <div className='mb-5 h-2 rounded-full bg-slate-200'>
-                    <div className='h-2 w-1/3 rounded-full bg-indigo-500'></div>
-                  </div>
-                  <div className='space-y-4'>
-                    <label className='block text-sm text-slate-700'>
-                      API Base URL
-                      <input className='form-input' value={config.apiBaseUrl} onChange={e => setConfig(prev => ({ ...prev, apiBaseUrl: e.target.value }))} />
-                    </label>
-                    <label className='block text-sm text-slate-700'>
-                      Swagger URL
-                      <input className='form-input' value={config.swaggerUrl} onChange={e => setConfig(prev => ({ ...prev, swaggerUrl: e.target.value }))} />
-                    </label>
-                    <div className='grid gap-4 md:grid-cols-2'>
-                      <label className='block text-sm text-slate-700'>
-                        Max Routes
-                        <input type='number' min='1' max='12' className='form-input' value={config.maxRoutes} onChange={e => setConfig(prev => ({ ...prev, maxRoutes: e.target.value }))} />
-                      </label>
-                      <label className='block text-sm text-slate-700'>
-                        Environment
-                        <select className='form-input' value={config.environment} onChange={e => setConfig(prev => ({ ...prev, environment: e.target.value }))}>
-                          <option value='local'>local</option>
-                          <option value='uat'>uat</option>
-                          <option value='qa'>qa</option>
-                          <option value='prod-safe'>prod-safe</option>
-                        </select>
-                      </label>
-                    </div>
-                    <button className='w-full rounded-2xl bg-indigo-500 px-4 py-3 font-semibold text-white'>Metadata captured</button>
-                  </div>
-                </div>
-                <div className='mt-6'>
-                  <div className='text-sm font-semibold text-slate-800'>Prompt suggestions</div>
-                  <div className='mt-3 flex flex-wrap gap-2'>
-                    {promptTemplates.map(template => <PromptPill key={template.id} prompt={template} onSelect={setPrompt} />)}
-                  </div>
-                  <textarea className='form-input mt-4 min-h-[140px]' value={prompt} onChange={e => setPrompt(e.target.value)} />
-                  <button onClick={runConversation} disabled={loading} className='mt-4 w-full rounded-2xl bg-slate-900 px-5 py-3 font-semibold text-white disabled:opacity-50'>
-                    {loading ? 'Running AI agent…' : 'Run AI agent'}
-                  </button>
-                  {message && <div className='mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600'>{message}</div>}
-                </div>
-              </div>
-
-              <div className='rounded-3xl border border-slate-200 bg-white p-6'>
-                <SectionTitle title='Powerful tools and MCP' subtitle='These tools are the main engine behind the AI agent experience.' />
-                <div className='mt-4 grid gap-3'>
-                  {tools.slice(0, 5).map(tool => (
-                    <div key={tool.id} className='rounded-2xl bg-slate-50 p-4'>
-                      <div className='flex items-center justify-between gap-3'>
-                        <div className='font-medium text-slate-900'>{tool.name}</div>
-                        <span className='rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700'>{tool.power}</span>
-                      </div>
-                      <div className='mt-2 text-sm text-slate-500'>{tool.description}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className='space-y-6'>
-              <ResultCard result={result} />
-              <div className='rounded-3xl border border-slate-200 bg-white p-6'>
-                <SectionTitle title='Technical companion view' subtitle='Keeps prompts, MCP info, and interoperability visible for engineering and QA teams.' />
-                <div className='mt-4 grid gap-4 lg:grid-cols-2'>
-                  <div className='rounded-3xl bg-slate-50 p-5'>
-                    <div className='text-sm font-semibold text-slate-800'>MCP discovery</div>
-                    <div className='mt-2 text-sm text-slate-500'>Registry endpoint: <span className='font-mono text-slate-700'>{agentBaseDefault}/mcp/tools</span></div>
-                    <div className='mt-3 text-sm text-slate-500'>Tool count: {tools.length}</div>
-                  </div>
-                  <div className='rounded-3xl bg-slate-50 p-5'>
-                    <div className='text-sm font-semibold text-slate-800'>Postman export</div>
-                    <div className='mt-2 text-sm text-slate-500'>Collection endpoint: <span className='font-mono text-slate-700'>{agentBaseDefault}/qa/postman-collection</span></div>
-                    <div className='mt-3 text-sm text-slate-500'>Useful for QA, regression review, and stakeholder demos.</div>
-                  </div>
-                </div>
-                <details className='mt-5 rounded-3xl border border-slate-200 p-4'>
-                  <summary className='cursor-pointer text-sm font-semibold text-slate-800'>Show execution JSON</summary>
-                  <pre className='mt-4 max-h-[360px] overflow-auto rounded-2xl bg-slate-900 p-4 text-xs text-slate-100'>{JSON.stringify(result, null, 2)}</pre>
-                </details>
-              </div>
-            </div>
-          </section>
-        )}
-      </main>
+      </div>
     </div>
   );
 }

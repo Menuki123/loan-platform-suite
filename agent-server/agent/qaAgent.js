@@ -16,7 +16,7 @@ function buildBusinessSummary(failed) {
   };
 }
 
-async function runAgent({ prompt, apiBaseUrl, swaggerSource, maxRoutes }) {
+async function runAgent({ prompt, apiBaseUrl, swaggerSource, maxRoutes, responseMode = 'cards' }) {
   const routes = await loadRoutes(swaggerSource);
   const selectedRoutes = await selectRoutes(prompt, routes, maxRoutes);
   const dependencyGraph = buildDependencyGraph(selectedRoutes);
@@ -70,6 +70,7 @@ async function runAgent({ prompt, apiBaseUrl, swaggerSource, maxRoutes }) {
       apiBaseUrl,
       swaggerSource,
       maxRoutes,
+      responseMode,
       selectedRoutes: selectedRoutes.map(r => `${r.method} ${r.path}`)
     },
     testInputs: results.map(r => ({ route: r.route, payload: r.payload })),
@@ -88,7 +89,8 @@ async function runAgent({ prompt, apiBaseUrl, swaggerSource, maxRoutes }) {
       type: 'execution_summary_card',
       title: 'AI Agent Execution Summary',
       decision: failed > 0 ? 'FAIL' : 'PASS',
-      subtitle: 'Conversation-mode result generated from selected routes and business-friendly explanations.'
+      subtitle: 'Conversation-mode result generated from selected routes and business-friendly explanations.',
+      preferredView: responseMode
     }
   };
 }
