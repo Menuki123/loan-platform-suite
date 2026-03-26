@@ -1,27 +1,27 @@
-version: '3.9'
-
 services:
   api-server:
     build:
       context: ./api-server
     container_name: api-server
     ports:
-      - '3000:3000'
+      - "3000:3000"
+    volumes:
+      - ./api-server:/app
+      - /app/node_modules
     restart: unless-stopped
 
   agent-server:
     build:
       context: ./agent-server
     container_name: agent-server
-    environment:
-      AGENT_PORT: 4000
-      API_BASE_URL: http://api-server:3000
-      SWAGGER_URL: http://api-server:3000/openapi.yaml
-      MAX_ROUTES: 6
-      GEMINI_KEY: ''
-      GEMINI_MODEL: gemini-1.5-pro
     ports:
-      - '4000:4000'
+      - "4000:4000"
+    environment:
+      API_BASE_URL: http://api-server:3000
+      MAX_ROUTES: 6
+    volumes:
+      - ./agent-server:/app
+      - /app/node_modules
     depends_on:
       - api-server
     restart: unless-stopped

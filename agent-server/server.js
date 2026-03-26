@@ -1,4 +1,4 @@
-require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const { runAgent } = require('./agent/qaAgent');
@@ -60,29 +60,21 @@ app.get('/qa/run', (_req, res) => {
 });
 
 app.post('/qa/run', async (req, res) => {
-  try {
-    const prompt = req.body.prompt || 'Run a general API functional evaluation';
-    const swaggerSource = req.body.swaggerUrl || req.body.swaggerPath || defaultSwaggerUrl;
-    const apiBaseUrl = req.body.apiBaseUrl || defaultApiBaseUrl;
-    const maxRoutes = Number(req.body.maxRoutes || defaultMaxRoutes);
+    try {
+        const result = await runAgent({
+            prompt: req.body.prompt,
+            swaggerUrl: req.body.swaggerUrl,
+            maxRoutes: Number(req.body.maxRoutes || 6)
+        });
 
-    console.log('[AGENT] Incoming prompt:', prompt);
-    console.log('[AGENT] API Base URL:', apiBaseUrl);
-    console.log('[AGENT] Swagger Source:', swaggerSource);
-    console.log('[AGENT] Max Routes:', maxRoutes);
-
-    const result = await runAgent({
-      prompt,
-      apiBaseUrl,
-      swaggerPath: swaggerSource,
-      maxRoutes
-    });
-
-    res.json(result);
-  } catch (error) {
-    console.error('[AGENT] Error:', error.message);
-    res.status(500).json({ status: 'error', message: error.message });
-  }
+        res.json(result);
+    } catch (error) {
+        console.error('[AGENT ERROR]', error);
+        res.status(500).json({
+            status: 'error',
+            message: error.message
+        });
+    }
 });
 
 const PORT = process.env.AGENT_PORT || 4000;
