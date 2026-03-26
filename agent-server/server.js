@@ -2,83 +2,80 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { runAgent } = require('./agent/qaAgent');
-const { toolRegistry } = require('./config/toolRegistry');
-const { agentCatalog } = require('./config/agentCatalog');
-const { promptTemplates } = require('./config/promptTemplates');
-const postmanCollection = require('./postman/loan-platform-agent.postman_collection.json');
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 
-app.get('/', (req, res) => {
+const defaultApiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3000';
+const defaultSwaggerUrl = process.env.SWAGGER_URL || `${defaultApiBaseUrl}/openapi.yaml`;
+const defaultMaxRoutes = Number(process.env.MAX_ROUTES || 6);
+
+app.get('/', (_req, res) => {
   res.json({
     status: 'success',
-    message: 'AI agent server is running',
+    message: 'Agent server is running',
     endpoints: {
       health: 'GET /health',
       bootstrap: 'GET /qa/bootstrap',
-      run: 'POST /qa/run',
-      tools: 'GET /mcp/tools',
-      prompts: 'GET /prompts/templates',
-      catalog: 'GET /agents/catalog',
-      postman: 'GET /qa/postman-collection'
+      run: 'POST /qa/run'
     }
   });
 });
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'agent-server', mode: 'conversation-first' });
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', service: 'agent-server' });
 });
 
-app.get('/agents/catalog', (req, res) => {
-  res.json({ status: 'success', agents: agentCatalog });
-});
-
-app.get('/mcp/tools', (req, res) => {
-  res.json({ status: 'success', protocol: 'mcp-inspired-registry', tools: toolRegistry });
-});
-
-app.get('/prompts/templates', (req, res) => {
-  res.json({ status: 'success', prompts: promptTemplates });
-});
-
-app.get('/qa/postman-collection', (req, res) => {
-  res.json(postmanCollection);
-});
-
-app.get('/qa/bootstrap', (req, res) => {
+app.get('/qa/bootstrap', (_req, res) => {
   res.json({
     status: 'success',
-    stage: 'collect_meta',
     component: {
       type: 'config_form',
-      title: 'System Evaluation Configuration',
-      description: 'Capture Swagger URL and runtime metadata before the QA agent asks for the evaluation prompt.',
+      title: 'Swagger configuration',
       fields: [
-        { key: 'apiBaseUrl', label: 'API Base URL', type: 'text', required: true, placeholder: 'https://your-api-host.com' },
-        { key: 'swaggerUrl', label: 'Swagger URL', type: 'text', required: true, placeholder: 'https://your-api-host.com/openapi.yaml' },
-        { key: 'maxRoutes', label: 'Max Routes', type: 'number', required: true, defaultValue: 4 },
-        { key: 'environment', label: 'Environment', type: 'select', required: true, options: ['local', 'uat', 'qa', 'prod-safe'], defaultValue: 'local' },
-        { key: 'responseMode', label: 'Response Mode', type: 'select', required: true, options: ['cards', 'list', 'table'], defaultValue: 'cards' }
+        {
+          key: 'swaggerUrl',
+          label: 'Swagger URL',
+          type: 'text',
+          required: true,
+          defaultValue: defaultSwaggerUrl,
+          placeholder: 'http://localhost:3000/openapi.yaml'
+        }
       ]
     },
-    nextStep: 'collect_prompt',
-    tools: toolRegistry,
-    prompts: promptTemplates
+    defaults: {
+      apiBaseUrl: defaultApiBaseUrl,
+      swaggerUrl: defaultSwaggerUrl,
+      maxRoutes: defaultMaxRoutes
+    }
+  });
+});
+
+app.get('/qa/run', (_req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'Use POST /qa/run with a JSON body in Postman'
   });
 });
 
 app.post('/qa/run', async (req, res) => {
   try {
-    const swaggerSource = req.body.swaggerUrl || req.body.swaggerPath || '../api-server/openapi.yaml';
+    const prompt = req.body.prompt || 'Run a general API functional evaluation';
+    const swaggerSource = req.body.swaggerUrl || req.body.swaggerPath || defaultSwaggerUrl;
+    const apiBaseUrl = req.body.apiBaseUrl || defaultApiBaseUrl;
+    const maxRoutes = Number(req.body.maxRoutes || defaultMaxRoutes);
+
+    console.log('[AGENT] Incoming prompt:', prompt);
+    console.log('[AGENT] API Base URL:', apiBaseUrl);
+    console.log('[AGENT] Swagger Source:', swaggerSource);
+    console.log('[AGENT] Max Routes:', maxRoutes);
 
     const result = await runAgent({
-      prompt: req.body.prompt,
-      apiBaseUrl: req.body.apiBaseUrl || 'http://localhost:3000',
-      swaggerSource,
-      maxRoutes: Number(req.body.maxRoutes || 6),
-      responseMode: req.body.responseMode || 'cards'
+      prompt,
+      apiBaseUrl,
+      swaggerPath: swaggerSource,
+      maxRoutes
     });
 
     res.json(result);

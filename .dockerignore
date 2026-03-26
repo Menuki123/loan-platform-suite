@@ -1,0 +1,7 @@
+node_modules
+npm-debug.log
+.git
+.vs
+frontend/node_modules
+agent-server/node_modules
+api-server/node_modules

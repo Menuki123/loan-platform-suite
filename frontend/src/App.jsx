@@ -1,177 +1,132 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-const agentBase = import.meta.env.VITE_AGENT_BASE_URL || 'http://localhost:4000';
-const apiBaseDefault = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const agentBaseDefault = import.meta.env.VITE_AGENT_BASE_URL || 'http://localhost:4000';
+const hardcodedUsername = 'demo.user';
+const hardcodedPassword = 'Xgen@123';
 
-const initialConfig = {
-  apiBaseUrl: apiBaseDefault,
-  swaggerUrl: `${apiBaseDefault}/openapi.yaml`,
-  maxRoutes: 4,
-  environment: 'local',
-  responseMode: 'cards'
-};
+const starterPrompts = [
+  'Evaluate the loan application workflow and explain the results in simple language.',
+  'Check the main onboarding and payment endpoints and summarize any failures clearly.',
+  'Run a general functional review of the system and list the key findings.'
+];
 
-function SparkIcon() {
+function LoginScreen({ onLogin }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (onLogin(username, password)) return;
+    setError('Invalid username or password.');
+  };
+
   return (
-    <div className='flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-lg shadow-sm'>
-      ✧
-    </div>
-  );
-}
-
-function AssistantBubble({ children }) {
-  return <div className='max-w-[980px] rounded-[28px] border border-slate-200 bg-white px-6 py-5 shadow-sm'>{children}</div>;
-}
-
-function UserBubble({ text }) {
-  return <div className='max-w-[70%] rounded-[24px] bg-black px-5 py-4 text-[15px] text-white shadow-sm'>{text}</div>;
-}
-
-function CapabilityCard() {
-  return (
-    <div className='mx-auto mb-8 max-w-[1100px] rounded-[32px] border border-slate-200 bg-white/90 px-8 py-8 text-slate-700 shadow-sm'>
-      <div className='mb-4 text-center text-2xl'>💬</div>
-      <h1 className='text-center text-[34px] font-semibold tracking-tight text-slate-900'>System Functional Evaluation Agent</h1>
-      <p className='mx-auto mt-3 max-w-[860px] text-center text-[16px] leading-7 text-slate-600'>
-        A conversation-first QA agent that captures Swagger and runtime metadata through frontend tools, asks for the evaluation prompt, executes the process, and returns human-friendly results.
-      </p>
-      <div className='mt-6 grid gap-3 md:grid-cols-4'>
-        {[
-          ['Conversation mode', 'Chat-style experience with tool components inside the thread.'],
-          ['Config capture tool', 'Collect API Base URL, Swagger URL, route budget, and response mode.'],
-          ['Execution summary', 'Show cards, list, or table output instead of raw JSON by default.'],
-          ['Postman ready', 'Use the collection endpoint for backend testing and team demos.']
-        ].map(([title, body]) => (
-          <div key={title} className='rounded-[24px] bg-slate-50 px-4 py-4'>
-            <div className='font-semibold text-slate-900'>{title}</div>
-            <div className='mt-2 text-sm leading-6 text-slate-500'>{body}</div>
+    <div className='min-h-screen bg-[#f6f1e7] p-6'>
+      <div className='mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-2xl'>
+        <div className='hidden w-1/2 bg-gradient-to-br from-slate-50 to-slate-100 p-10 lg:flex lg:flex-col lg:justify-center'>
+          <div className='rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm'>
+            <div className='inline-flex rounded-full bg-blue-600 px-4 py-1 text-sm font-semibold text-white'>
+              System Functional Evaluation Agent
+            </div>
+            <p className='mt-5 text-sm leading-7 text-slate-600'>
+              A conversation-first QA agent that captures Swagger through frontend tools, asks for the evaluation prompt,
+              executes the process, and returns human-friendly results.
+            </p>
+            <div className='mt-8 grid gap-4 md:grid-cols-2'>
+              {[
+                ['Conversation mode', 'Chat-style experience with tool components inside the thread.'],
+                ['Config capture tool', 'Collect a single Swagger URL and use sensible defaults internally.'],
+                ['Execution summary', 'Show pass, fail, and review findings in a clear business-friendly format.'],
+                ['Postman ready', 'Use the collection endpoint for backend testing and demo screenshots.']
+              ].map(([title, text]) => (
+                <div key={title} className='rounded-2xl bg-slate-50 p-4'>
+                  <h3 className='text-sm font-semibold text-slate-900'>{title}</h3>
+                  <p className='mt-2 text-sm text-slate-500'>{text}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SuggestionPill({ text, onClick }) {
-  return (
-    <button onClick={() => onClick(text)} className='rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-left text-[15px] text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50'>
-      {text}
-    </button>
-  );
-}
-
-function ConfigToolCard({ config, setConfig, onSubmit }) {
-  return (
-    <AssistantBubble>
-      <div className='flex items-center justify-between gap-4'>
-        <div>
-          <div className='text-[18px] font-semibold text-slate-900'>System Evaluation Configuration</div>
-          <div className='mt-1 text-sm text-slate-500'>Capture Swagger URL and runtime metadata before the QA agent starts evaluating.</div>
         </div>
-        <div className='text-sm text-slate-400'>Step 1 of 2</div>
+
+        <div className='flex w-full items-center justify-center p-6 lg:w-1/2 lg:p-10'>
+          <form onSubmit={submit} className='w-full max-w-md rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm'>
+            <h1 className='text-3xl font-bold tracking-tight text-slate-900'>Login</h1>
+            <p className='mt-2 text-sm text-slate-500'>Sign in to continue to the conversational QA view.</p>
+
+            <label className='mt-8 block text-sm font-medium text-slate-700'>Username</label>
+            <input
+              className='mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none ring-0 transition focus:border-blue-500'
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder='Enter username'
+            />
+
+            <label className='mt-5 block text-sm font-medium text-slate-700'>Password</label>
+            <input
+              type='password'
+              className='mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none ring-0 transition focus:border-blue-500'
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder='Enter password'
+            />
+
+            {error && <div className='mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-600'>{error}</div>}
+
+            <button type='submit' className='mt-6 w-full rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white'>
+              Sign in
+            </button>
+          </form>
+        </div>
       </div>
-      <div className='mt-4 h-2 rounded-full bg-slate-100'>
-        <div className='h-2 w-1/2 rounded-full bg-violet-500'></div>
-      </div>
-      <div className='mt-6 grid gap-4 md:grid-cols-2'>
-        <label className='text-sm text-slate-700'>
-          API Base URL
-          <input className='mt-2 w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400' value={config.apiBaseUrl} onChange={e => setConfig(prev => ({ ...prev, apiBaseUrl: e.target.value }))} />
-        </label>
-        <label className='text-sm text-slate-700'>
-          Swagger URL
-          <input className='mt-2 w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400' value={config.swaggerUrl} onChange={e => setConfig(prev => ({ ...prev, swaggerUrl: e.target.value }))} />
-        </label>
-        <label className='text-sm text-slate-700'>
-          Max Routes
-          <input type='number' min='1' max='12' className='mt-2 w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400' value={config.maxRoutes} onChange={e => setConfig(prev => ({ ...prev, maxRoutes: e.target.value }))} />
-        </label>
-        <label className='text-sm text-slate-700'>
-          Environment
-          <select className='mt-2 w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400' value={config.environment} onChange={e => setConfig(prev => ({ ...prev, environment: e.target.value }))}>
-            {['local', 'uat', 'qa', 'prod-safe'].map(option => <option key={option} value={option}>{option}</option>)}
-          </select>
-        </label>
-        <label className='text-sm text-slate-700 md:col-span-2'>
-          Response Format
-          <div className='mt-2 grid gap-3 md:grid-cols-3'>
-            {['cards', 'list', 'table'].map(option => (
-              <button
-                type='button'
-                key={option}
-                onClick={() => setConfig(prev => ({ ...prev, responseMode: option }))}
-                className={`rounded-[18px] border px-4 py-3 text-sm font-medium capitalize transition ${config.responseMode === option ? 'border-violet-500 bg-violet-50 text-violet-700' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-        </label>
-      </div>
-      <div className='mt-6 flex items-center justify-between gap-4'>
-        <div className='text-sm text-slate-500'>Postman collection: <span className='font-mono text-slate-700'>{agentBase}/qa/postman-collection</span></div>
-        <button onClick={onSubmit} className='rounded-[18px] bg-violet-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-violet-600'>Continue</button>
-      </div>
-    </AssistantBubble>
+    </div>
   );
 }
 
 function SummaryCards({ result }) {
+  const summary = result.summary || {};
   return (
-    <div className='space-y-4'>
-      <div className='grid gap-3 md:grid-cols-3'>
-        <Metric title='Total Tests' value={result.summary?.totalTests ?? 0} />
-        <Metric title='Passed' value={result.summary?.passed ?? 0} tone='green' />
-        <Metric title='Failed' value={result.summary?.failed ?? 0} tone='red' />
+    <div className='grid gap-4 md:grid-cols-3'>
+      <div className='rounded-3xl border border-slate-200 bg-white p-5'>
+        <div className='text-sm text-slate-500'>Decision</div>
+        <div className={`mt-3 inline-flex rounded-full px-3 py-1 text-sm font-semibold ${result.decision === 'PASS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+          {result.decision}
+        </div>
       </div>
-      <div className='space-y-3'>
-        {(result.summary?.keyFindings || []).map((finding, index) => (
-          <div key={`${finding.route}-${index}`} className='rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-4'>
-            <div className='flex items-start justify-between gap-3'>
-              <div className='font-medium text-slate-900'>{finding.route}</div>
-              <Badge result={finding.result} />
-            </div>
-            <div className='mt-2 text-sm leading-6 text-slate-500'>{finding.reason}</div>
-          </div>
-        ))}
+      <div className='rounded-3xl border border-slate-200 bg-white p-5'>
+        <div className='text-sm text-slate-500'>Total tests</div>
+        <div className='mt-3 text-3xl font-bold text-slate-900'>{summary.totalTests ?? 0}</div>
+      </div>
+      <div className='rounded-3xl border border-slate-200 bg-white p-5'>
+        <div className='text-sm text-slate-500'>Passed / Failed</div>
+        <div className='mt-3 text-3xl font-bold text-slate-900'>{summary.passed ?? 0} / {summary.failed ?? 0}</div>
       </div>
     </div>
   );
 }
 
-function FindingsList({ result }) {
+function FindingsTable({ items = [] }) {
+  if (!items.length) return null;
   return (
-    <ul className='space-y-3'>
-      {(result.summary?.keyFindings || []).map((finding, index) => (
-        <li key={`${finding.route}-${index}`} className='rounded-[18px] border border-slate-200 px-4 py-3'>
-          <div className='flex items-center justify-between gap-3'>
-            <span className='font-medium text-slate-900'>{finding.route}</span>
-            <Badge result={finding.result} />
-          </div>
-          <p className='mt-2 text-sm text-slate-500'>{finding.reason}</p>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function FindingsTable({ result }) {
-  return (
-    <div className='overflow-hidden rounded-[20px] border border-slate-200'>
+    <div className='overflow-hidden rounded-3xl border border-slate-200 bg-white'>
       <table className='min-w-full divide-y divide-slate-200 text-sm'>
         <thead className='bg-slate-50'>
           <tr>
             <th className='px-4 py-3 text-left font-semibold text-slate-700'>Route</th>
-            <th className='px-4 py-3 text-left font-semibold text-slate-700'>Status</th>
+            <th className='px-4 py-3 text-left font-semibold text-slate-700'>Result</th>
             <th className='px-4 py-3 text-left font-semibold text-slate-700'>Reason</th>
           </tr>
         </thead>
-        <tbody className='divide-y divide-slate-200 bg-white'>
-          {(result.summary?.keyFindings || []).map((finding, index) => (
-            <tr key={`${finding.route}-${index}`}>
-              <td className='px-4 py-3 text-slate-900'>{finding.route}</td>
-              <td className='px-4 py-3'><Badge result={finding.result} /></td>
-              <td className='px-4 py-3 text-slate-500'>{finding.reason}</td>
+        <tbody className='divide-y divide-slate-100'>
+          {items.map((item, idx) => (
+            <tr key={`${item.route}-${idx}`}>
+              <td className='px-4 py-3 text-slate-900'>{item.route}</td>
+              <td className='px-4 py-3'>
+                <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${item.result === 'PASS' ? 'bg-emerald-100 text-emerald-700' : item.result === 'FAIL' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {item.result}
+                </span>
+              </td>
+              <td className='px-4 py-3 text-slate-600'>{item.reason}</td>
             </tr>
           ))}
         </tbody>
@@ -180,220 +135,95 @@ function FindingsTable({ result }) {
   );
 }
 
-function Metric({ title, value, tone = 'default' }) {
-  const toneClasses = tone === 'green'
-    ? 'bg-emerald-50 text-emerald-800'
-    : tone === 'red'
-      ? 'bg-rose-50 text-rose-800'
-      : 'bg-slate-50 text-slate-900';
-
-  return (
-    <div className={`rounded-[20px] px-4 py-4 ${toneClasses}`}>
-      <div className='text-xs font-medium uppercase tracking-wide opacity-70'>{title}</div>
-      <div className='mt-2 text-3xl font-semibold'>{value}</div>
-    </div>
-  );
-}
-
-function Badge({ result }) {
-  const map = {
-    PASS: 'bg-emerald-100 text-emerald-700',
-    FAIL: 'bg-rose-100 text-rose-700',
-    REVIEW: 'bg-amber-100 text-amber-700'
-  };
-  return <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${map[result] || 'bg-slate-100 text-slate-700'}`}>{result}</span>;
-}
-
-function ResultToolCard({ result, responseMode }) {
-  return (
-    <AssistantBubble>
-      <div className='flex flex-wrap items-start justify-between gap-3'>
-        <div>
-          <div className='text-[18px] font-semibold text-slate-900'>Execution Summary</div>
-          <div className='mt-1 text-sm text-slate-500'>{result.userSummary?.overview}</div>
-        </div>
-        <div className='flex items-center gap-2'>
-          <span className='rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold capitalize text-slate-600'>{responseMode}</span>
-          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${result.decision === 'PASS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{result.decision}</span>
-        </div>
-      </div>
-      <p className='mt-4 text-sm leading-6 text-slate-600'>{result.userSummary?.result}</p>
-      <p className='mt-2 text-sm leading-6 text-slate-500'>{result.userSummary?.impact}</p>
-      <div className='mt-5'>
-        {responseMode === 'table' ? <FindingsTable result={result} /> : responseMode === 'list' ? <FindingsList result={result} /> : <SummaryCards result={result} />}
-      </div>
-      <details className='mt-5 rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3'>
-        <summary className='cursor-pointer text-sm font-semibold text-slate-700'>Technical details</summary>
-        <pre className='mt-3 overflow-auto rounded-[14px] bg-slate-900 p-4 text-xs text-slate-100'>{JSON.stringify(result, null, 2)}</pre>
-      </details>
-    </AssistantBubble>
-  );
-}
-
-function AssistantText({ text }) {
-  return (
-    <AssistantBubble>
-      <div className='text-[16px] leading-8 text-slate-700 whitespace-pre-line'>{text}</div>
-    </AssistantBubble>
-  );
-}
-
-export default function App() {
+function ConversationScreen({ onLogout }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [config, setConfig] = useState(initialConfig);
+  const [swaggerUrl, setSwaggerUrl] = useState('http://localhost:3000/openapi.yaml');
   const [configReady, setConfigReady] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [promptTemplates, setPromptTemplates] = useState([]);
-  const [showStarterPrompts, setShowStarterPrompts] = useState(true);
-  const scrollRef = useRef(null);
 
   useEffect(() => {
-    async function bootstrap() {
+    const bootstrap = async () => {
       try {
-        const [bootstrapRes, promptsRes] = await Promise.all([
-          fetch(`${agentBase}/qa/bootstrap`),
-          fetch(`${agentBase}/prompts/templates`)
-        ]);
-        const bootstrapData = await bootstrapRes.json();
-        const promptsData = await promptsRes.json();
+        const response = await fetch(`${agentBaseDefault}/qa/bootstrap`);
+        const data = await response.json();
+        const defaultValue = data?.defaults?.swaggerUrl || 'http://localhost:3000/openapi.yaml';
+        setSwaggerUrl(defaultValue);
+      } catch (_err) {}
 
-        setPromptTemplates(promptsData.prompts || []);
-        setMessages([
-          {
-            id: 'welcome',
-            role: 'assistant',
-            type: 'text',
-            text: 'Welcome. I can help evaluate your API through a guided conversation. First, please complete the configuration tool so I can understand your Swagger definition and runtime metadata.'
-          },
-          {
-            id: 'config-tool',
-            role: 'assistant',
-            type: 'config_form',
-            component: bootstrapData.component
-          }
-        ]);
-      } catch (error) {
-        setMessages([
-          { id: 'welcome-fallback', role: 'assistant', type: 'text', text: 'Welcome. Please configure the API details below, then send the evaluation prompt.' },
-          { id: 'config-tool-fallback', role: 'assistant', type: 'config_form' }
-        ]);
-      }
-    }
+      setMessages([
+        {
+          role: 'assistant',
+          type: 'text',
+          text: 'Welcome. Please provide the Swagger URL first so I can prepare the evaluation.'
+        },
+        {
+          role: 'assistant',
+          type: 'config'
+        }
+      ]);
+    };
 
     bootstrap();
   }, []);
 
-  useEffect(() => {
-    const node = scrollRef.current;
-    if (node) node.scrollTop = node.scrollHeight;
-  }, [messages, loading]);
-
-  const suggestionTexts = useMemo(() => {
-    const fromTemplates = promptTemplates.slice(0, 2).map(item => item.prompt);
-    return fromTemplates.length ? fromTemplates : [
-      'Run a smoke test on the most important LOS routes and tell me whether the environment is safe for a demo.',
-      'Validate the LOS application form and explain failures clearly.'
-    ];
-  }, [promptTemplates]);
-
   const submitConfig = () => {
+    if (!swaggerUrl.trim()) return;
     setConfigReady(true);
-    setMessages(prev => [
+    setMessages((prev) => [
       ...prev,
       {
-        id: `config-summary-${Date.now()}`,
         role: 'user',
         type: 'text',
-        text: `API Base URL: ${config.apiBaseUrl}\nSwagger URL: ${config.swaggerUrl}\nMax Routes: ${config.maxRoutes}\nEnvironment: ${config.environment}\nResponse Format: ${config.responseMode}`
+        text: swaggerUrl
       },
       {
-        id: `assistant-ready-${Date.now()}`,
         role: 'assistant',
         type: 'text',
-        text: 'Great. Configuration is captured. Now tell me what you want me to evaluate.'
+        text: 'Configuration captured. Now send the evaluation prompt.'
       }
     ]);
-  };
-
-  const handleSuggestion = text => {
-    setInput(text);
-    setShowStarterPrompts(false);
-  };
-
-  const ensureConfigReminder = () => {
-    setMessages(prev => {
-      if (prev.some(item => item.id === 'config-reminder')) return prev;
-      return [
-        ...prev,
-        { id: 'config-reminder', role: 'assistant', type: 'text', text: 'Before I run the evaluation, please complete the configuration tool in the conversation so I know which API and Swagger file to use.' }
-      ];
-    });
   };
 
   const sendMessage = async () => {
-    const trimmed = input.trim();
-    if (!trimmed || loading) return;
+    if (!input.trim() || loading) return;
 
-    setShowStarterPrompts(false);
-
-    if (!configReady) {
-      setInput('');
-      ensureConfigReminder();
-      return;
-    }
-
-    const userMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      type: 'text',
-      text: trimmed
-    };
-
-    setMessages(prev => [
-      ...prev,
-      userMessage,
-      {
-        id: `assistant-processing-${Date.now()}`,
-        role: 'assistant',
-        type: 'text',
-        text: 'Understood. I am analyzing the Swagger definition, selecting relevant routes, and running the evaluation now.'
-      }
-    ]);
+    const prompt = input.trim();
     setInput('');
     setLoading(true);
 
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', type: 'text', text: prompt },
+      { role: 'assistant', type: 'text', text: 'Running the evaluation now...' }
+    ]);
+
     try {
-      const response = await fetch(`${agentBase}/qa/run`, {
+      const response = await fetch(`${agentBaseDefault}/qa/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: trimmed,
-          apiBaseUrl: config.apiBaseUrl,
-          swaggerUrl: config.swaggerUrl,
-          maxRoutes: Number(config.maxRoutes),
-          environment: config.environment,
-          responseMode: config.responseMode
+          prompt,
+          swaggerUrl,
+          maxRoutes: 6
         })
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Agent execution failed');
+      if (!response.ok) throw new Error(data.message || 'Agent run failed');
 
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
         {
-          id: `assistant-result-${Date.now()}`,
           role: 'assistant',
           type: 'result',
           result: data
         }
       ]);
     } catch (error) {
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
         {
-          id: `assistant-error-${Date.now()}`,
           role: 'assistant',
           type: 'text',
           text: error.message || 'Something went wrong while running the evaluation.'
@@ -404,77 +234,108 @@ export default function App() {
     }
   };
 
-  const onComposerKeyDown = event => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      sendMessage();
-    }
-  };
-
   return (
-    <div className='min-h-screen bg-[#f5f5f7] text-slate-900'>
-      <div className='mx-auto flex min-h-screen max-w-[1500px] flex-col px-6 py-7'>
-        <CapabilityCard />
-
-        <div ref={scrollRef} className='flex-1 overflow-y-auto rounded-[32px] px-2 pb-6'>
-          <div className='mx-auto max-w-[1480px] space-y-6'>
-            {messages.map(message => (
-              <div key={message.id} className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                {message.role === 'assistant' && <SparkIcon />}
-                <div className={`${message.role === 'assistant' ? 'max-w-[1120px]' : 'max-w-[70%]'}`}>
-                  {message.type === 'config_form' ? (
-                    <ConfigToolCard config={config} setConfig={setConfig} onSubmit={submitConfig} />
-                  ) : message.type === 'result' ? (
-                    <ResultToolCard result={message.result} responseMode={config.responseMode} />
-                  ) : message.role === 'user' ? (
-                    <UserBubble text={message.text} />
-                  ) : (
-                    <AssistantText text={message.text} />
-                  )}
-                </div>
-              </div>
-            ))}
-            {loading && (
-              <div className='flex justify-start gap-4'>
-                <SparkIcon />
-                <AssistantBubble>
-                  <div className='flex items-center gap-2 text-slate-500'>
-                    <span className='h-2.5 w-2.5 animate-pulse rounded-full bg-violet-400'></span>
-                    <span className='h-2.5 w-2.5 animate-pulse rounded-full bg-violet-400 [animation-delay:120ms]'></span>
-                    <span className='h-2.5 w-2.5 animate-pulse rounded-full bg-violet-400 [animation-delay:240ms]'></span>
-                    <span className='ml-2 text-sm'>Running evaluation...</span>
-                  </div>
-                </AssistantBubble>
-              </div>
-            )}
-          </div>
+    <div className='min-h-screen bg-[#f6f1e7] p-4 md:p-6'>
+      <div className='mx-auto flex min-h-[calc(100vh-2rem)] max-w-6xl flex-col rounded-[32px] border border-slate-200 bg-white shadow-2xl'>
+        <div className='flex items-center justify-between border-b border-slate-200 px-6 py-4'>
+          <div className='text-sm text-slate-500'>Conversation mode</div>
+          <button onClick={onLogout} className='rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-700'>Logout</button>
         </div>
 
-        {showStarterPrompts && (
-          <div className='mt-4 grid gap-3 md:grid-cols-2'>
-            {suggestionTexts.map(text => <SuggestionPill key={text} text={text} onClick={handleSuggestion} />)}
-          </div>
-        )}
+        <div className='flex-1 space-y-4 overflow-y-auto bg-[#f9f7f2] p-4 md:p-6'>
+          {messages.map((msg, idx) => {
+            if (msg.type === 'config') {
+              return (
+                <div key={idx} className='max-w-3xl rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm'>
+                  <div className='text-sm font-semibold text-slate-900'>Swagger configuration</div>
+                  <p className='mt-2 text-sm text-slate-500'>Just put only the Swagger URL field for now.</p>
+                  <input
+                    className='mt-4 w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500'
+                    value={swaggerUrl}
+                    onChange={(e) => setSwaggerUrl(e.target.value)}
+                    placeholder='http://localhost:3000/openapi.yaml'
+                  />
+                  <button onClick={submitConfig} className='mt-4 rounded-2xl bg-blue-600 px-5 py-3 font-semibold text-white'>
+                    Continue
+                  </button>
+                </div>
+              );
+            }
 
-        <div className='mt-4 rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm'>
-          <div className='min-h-[120px] rounded-[22px] bg-slate-50 px-4 py-4'>
-            <textarea
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={onComposerKeyDown}
-              placeholder='Send a message...'
-              className='h-[92px] w-full resize-none bg-transparent text-[16px] text-slate-700 outline-none placeholder:text-slate-400'
-            />
-          </div>
-          <div className='mt-3 flex items-center justify-between gap-3'>
-            <div className='text-sm text-slate-400'>Tip: complete the configuration tool first, then send your QA prompt.</div>
-            <div className='flex items-center gap-3'>
-              <button className='flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-lg text-slate-500 transition hover:bg-slate-50'>⌘</button>
-              <button onClick={sendMessage} className='flex h-10 w-10 items-center justify-center rounded-full bg-violet-300 text-xl text-white transition hover:bg-violet-400'>↑</button>
+            if (msg.type === 'result') {
+              return (
+                <div key={idx} className='max-w-4xl space-y-4 rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm'>
+                  <div>
+                    <div className='text-lg font-semibold text-slate-900'>Execution summary</div>
+                    <p className='mt-2 text-sm text-slate-500'>{msg.result.userSummary?.result}</p>
+                  </div>
+                  <SummaryCards result={msg.result} />
+                  <FindingsTable items={msg.result.summary?.keyFindings || []} />
+                </div>
+              );
+            }
+
+            return (
+              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-3xl rounded-[24px] px-5 py-4 text-sm shadow-sm ${msg.role === 'user' ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-700'}`}>
+                  {msg.text}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className='border-t border-slate-200 bg-white p-4'>
+          <div className='mx-auto max-w-5xl'>
+            {!configReady && (
+              <div className='mb-3 flex flex-wrap gap-2'>
+                <div className='rounded-full bg-slate-100 px-4 py-2 text-xs text-slate-500'>Complete the Swagger field to continue</div>
+              </div>
+            )}
+            {configReady && (
+              <div className='mb-3 flex flex-wrap gap-2'>
+                {starterPrompts.map((item) => (
+                  <button key={item} onClick={() => setInput(item)} className='rounded-full border border-slate-300 bg-white px-4 py-2 text-left text-xs text-slate-600'>
+                    {item}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className='flex items-end gap-3'>
+              <textarea
+                className='min-h-[90px] flex-1 resize-none rounded-[24px] border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 disabled:bg-slate-100'
+                placeholder={configReady ? 'Send the evaluation prompt...' : 'Complete the Swagger URL field first...'}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                disabled={!configReady}
+              />
+              <button onClick={sendMessage} disabled={!configReady || loading} className='rounded-full bg-blue-600 px-5 py-4 font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300'>
+                {loading ? 'Running...' : 'Send'}
+              </button>
             </div>
           </div>
         </div>
       </div>
     </div>
   );
+}
+
+export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(localStorage.getItem('isLoggedIn') === 'true');
+
+  const handleLogin = (username, password) => {
+    const ok = username === hardcodedUsername && password === hardcodedPassword;
+    if (ok) {
+      localStorage.setItem('isLoggedIn', 'true');
+      setIsLoggedIn(true);
+    }
+    return ok;
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('isLoggedIn');
+    setIsLoggedIn(false);
+  };
+
+  return isLoggedIn ? <ConversationScreen onLogout={handleLogout} /> : <LoginScreen onLogin={handleLogin} />;
 }

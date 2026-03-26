@@ -5,16 +5,13 @@ function isHttpUrl(value = '') {
   return /^https?:\/\//i.test(value);
 }
 
-async function loadRoutes(swaggerSource) {
-  let sourceToLoad = swaggerSource || '../api-server/openapi.yaml';
+async function loadRoutes(swaggerPath) {
+  const source = isHttpUrl(swaggerPath)
+    ? swaggerPath
+    : path.resolve(__dirname, '..', swaggerPath);
 
-  if (!isHttpUrl(sourceToLoad)) {
-    sourceToLoad = path.resolve(__dirname, '..', sourceToLoad);
-  }
-
-  const api = await SwaggerParser.validate(sourceToLoad);
+  const api = await SwaggerParser.validate(source);
   const routes = [];
-
   for (const [routePath, methods] of Object.entries(api.paths || {})) {
     for (const [method, config] of Object.entries(methods || {})) {
       routes.push({
@@ -24,13 +21,11 @@ async function loadRoutes(swaggerSource) {
         description: config.description || config.summary || '',
         parameters: config.parameters || [],
         requestBody: config.requestBody || null,
-        tags: config.tags || [],
-        operationId: config.operationId || `${method}_${routePath}`.replace(/[^a-zA-Z0-9_]/g, '_')
+        tags: config.tags || []
       });
     }
   }
-
   return routes;
 }
 
-module.exports = { loadRoutes, isHttpUrl };
+module.exports = { loadRoutes };
