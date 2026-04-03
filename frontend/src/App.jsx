@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
+const hardcodedUsername = 'admin';
+const hardcodedPassword = 'password123';
 const agentBaseDefault = import.meta.env.VITE_AGENT_BASE_URL || 'http://localhost:4000';
-const hardcodedUsername = 'demo.user';
-const hardcodedPassword = 'Xgen@123';
 
 const starterPrompts = [
-  'Evaluate the loan application workflow and explain the results in simple language.',
-  'Check the main onboarding and payment endpoints and summarize any failures clearly.',
-  'Run a general functional review of the system and list the key findings.'
+  'Create a customer and apply for a loan',
+  'Check underwriting rules for PRODUCT_A',
+  'Run a payment summary and explain the result'
 ];
 
 function LoginScreen({ onLogin }) {
@@ -17,68 +17,55 @@ function LoginScreen({ onLogin }) {
 
   const submit = (e) => {
     e.preventDefault();
-    if (onLogin(username, password)) return;
-    setError('Invalid username or password.');
+    const ok = onLogin(username, password);
+    if (!ok) setError('Invalid username or password');
   };
 
   return (
-    <div className='min-h-screen bg-[#f6f1e7] p-6'>
-      <div className='mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-2xl'>
-        <div className='hidden w-1/2 bg-gradient-to-br from-slate-50 to-slate-100 p-10 lg:flex lg:flex-col lg:justify-center'>
-          <div className='rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm'>
-            <div className='inline-flex rounded-full bg-blue-600 px-4 py-1 text-sm font-semibold text-white'>
-              System Functional Evaluation Agent
-            </div>
-            <p className='mt-5 text-sm leading-7 text-slate-600'>
-              A conversation-first QA agent that captures Swagger through frontend tools, asks for the evaluation prompt,
-              executes the process, and returns human-friendly results.
-            </p>
-            <div className='mt-8 grid gap-4 md:grid-cols-2'>
-              {[
-                ['Conversation mode', 'Chat-style experience with tool components inside the thread.'],
-                ['Config capture tool', 'Collect a single Swagger URL and use sensible defaults internally.'],
-                ['Execution summary', 'Show pass, fail, and review findings in a clear business-friendly format.'],
-                ['Postman ready', 'Use the collection endpoint for backend testing and demo screenshots.']
-              ].map(([title, text]) => (
-                <div key={title} className='rounded-2xl bg-slate-50 p-4'>
-                  <h3 className='text-sm font-semibold text-slate-900'>{title}</h3>
-                  <p className='mt-2 text-sm text-slate-500'>{text}</p>
-                </div>
-              ))}
+    <div className='min-h-screen bg-[#f6f1e7] p-4'>
+      <div className='mx-auto flex min-h-[calc(100vh-2rem)] max-w-6xl items-center justify-center rounded-[32px] bg-white shadow-2xl'>
+        <div className='grid w-full max-w-5xl gap-0 md:grid-cols-2'>
+          <div className='hidden rounded-l-[32px] bg-slate-900 p-12 text-white md:block'>
+            <div className='max-w-sm'>
+              <div className='text-sm uppercase tracking-[0.3em] text-slate-300'>Loan platform suite</div>
+              <h1 className='mt-6 text-4xl font-bold leading-tight'>Conversational QA agent with file-driven execution.</h1>
+              <p className='mt-6 text-slate-300'>Sign in to test APIs, upload CSV or JSON data, and save conversation history in SQLite.</p>
             </div>
           </div>
-        </div>
 
-        <div className='flex w-full items-center justify-center p-6 lg:w-1/2 lg:p-10'>
-          <form onSubmit={submit} className='w-full max-w-md rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm'>
-            <h1 className='text-3xl font-bold tracking-tight text-slate-900'>Login</h1>
-            <p className='mt-2 text-sm text-slate-500'>Sign in to continue to the conversational QA view.</p>
+          <form onSubmit={submit} className='p-8 md:p-12'>
+            <div className='max-w-md rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm'>
+              <h1 className='text-3xl font-bold tracking-tight text-slate-900'>Login</h1>
+              <p className='mt-2 text-sm text-slate-500'>Sign in to continue to the conversational QA view.</p>
 
-            <label className='mt-8 block text-sm font-medium text-slate-700'>Username</label>
-            <input
-              className='mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none ring-0 transition focus:border-blue-500'
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder='Enter username'
-            />
+              <label className='mt-8 block text-sm font-medium text-slate-700'>Username</label>
+              <input className='mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none ring-0 transition focus:border-blue-500' value={username} onChange={(e) => setUsername(e.target.value)} placeholder='Enter username' />
 
-            <label className='mt-5 block text-sm font-medium text-slate-700'>Password</label>
-            <input
-              type='password'
-              className='mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none ring-0 transition focus:border-blue-500'
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder='Enter password'
-            />
+              <label className='mt-5 block text-sm font-medium text-slate-700'>Password</label>
+              <input type='password' className='mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none ring-0 transition focus:border-blue-500' value={password} onChange={(e) => setPassword(e.target.value)} placeholder='Enter password' />
 
-            {error && <div className='mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-600'>{error}</div>}
+              {error && <div className='mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-600'>{error}</div>}
 
-            <button type='submit' className='mt-6 w-full rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white'>
-              Sign in
-            </button>
+              <button type='submit' className='mt-6 w-full rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white'>
+                Sign in
+              </button>
+            </div>
           </form>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SwaggerConfigTool({ swaggerUrl, setSwaggerUrl, onContinue, disabled }) {
+  return (
+    <div className='max-w-3xl rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm'>
+      <div className='text-sm font-semibold text-slate-900'>Swagger configuration</div>
+      <p className='mt-2 text-sm text-slate-500'>Capture the Swagger URL once through the frontend tool, then proceed directly to evaluation.</p>
+      <input className='mt-4 w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500' value={swaggerUrl} onChange={(e) => setSwaggerUrl(e.target.value)} placeholder='http://localhost:3000/openapi.json' disabled={disabled} />
+      <button onClick={onContinue} disabled={disabled || !swaggerUrl.trim()} className='mt-4 rounded-2xl bg-blue-600 px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300'>
+        Continue
+      </button>
     </div>
   );
 }
@@ -105,84 +92,287 @@ function SummaryCards({ result }) {
   );
 }
 
-function FindingsTable({ items = [] }) {
-  if (!items.length) return null;
+function UploadedFileSummary({ fileSummary }) {
+  if (!fileSummary) return null;
+
   return (
-    <div className='overflow-hidden rounded-3xl border border-slate-200 bg-white'>
-      <table className='min-w-full divide-y divide-slate-200 text-sm'>
-        <thead className='bg-slate-50'>
-          <tr>
-            <th className='px-4 py-3 text-left font-semibold text-slate-700'>Route</th>
-            <th className='px-4 py-3 text-left font-semibold text-slate-700'>Result</th>
-            <th className='px-4 py-3 text-left font-semibold text-slate-700'>Reason</th>
-          </tr>
-        </thead>
-        <tbody className='divide-y divide-slate-100'>
-          {items.map((item, idx) => (
-            <tr key={`${item.route}-${idx}`}>
-              <td className='px-4 py-3 text-slate-900'>{item.route}</td>
-              <td className='px-4 py-3'>
-                <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${item.result === 'PASS' ? 'bg-emerald-100 text-emerald-700' : item.result === 'FAIL' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                  {item.result}
-                </span>
-              </td>
-              <td className='px-4 py-3 text-slate-600'>{item.reason}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className='rounded-3xl border border-slate-200 bg-white p-5'>
+      <div className='flex flex-wrap items-start justify-between gap-3'>
+        <div>
+          <h3 className='text-base font-semibold text-slate-900'>Uploaded dataset used by the agent</h3>
+          <p className='mt-1 text-sm text-slate-500'>The agent read this file and mapped the data into endpoint payloads.</p>
+        </div>
+        <div className='rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase text-slate-600'>{fileSummary.fileType}</div>
+      </div>
+      <div className='mt-4 grid gap-3 md:grid-cols-3'>
+        <div className='rounded-2xl bg-slate-50 p-4'>
+          <div className='text-xs uppercase tracking-wide text-slate-500'>File</div>
+          <div className='mt-2 text-sm font-semibold text-slate-900'>{fileSummary.fileName}</div>
+        </div>
+        <div className='rounded-2xl bg-slate-50 p-4'>
+          <div className='text-xs uppercase tracking-wide text-slate-500'>Records</div>
+          <div className='mt-2 text-sm font-semibold text-slate-900'>{fileSummary.totalRecords ?? 0}</div>
+        </div>
+        <div className='rounded-2xl bg-slate-50 p-4'>
+          <div className='text-xs uppercase tracking-wide text-slate-500'>Columns</div>
+          <div className='mt-2 text-sm font-semibold text-slate-900'>{fileSummary.columns?.length ? fileSummary.columns.join(', ') : 'None detected'}</div>
+        </div>
+      </div>
     </div>
   );
+}
+
+function EndpointCards({ items = [] }) {
+  const [expanded, setExpanded] = useState(true);
+  const [showAll, setShowAll] = useState(false);
+
+  const visibleItems = showAll ? items : items.slice(0, 3);
+
+  if (!items.length) return null;
+
+  return (
+    <div className='rounded-3xl border border-slate-200 bg-white p-5'>
+      <div className='flex flex-wrap items-center justify-between gap-3'>
+        <div>
+          <h3 className='text-base font-semibold text-slate-900'>API endpoints used by the agent</h3>
+          <p className='mt-1 text-sm text-slate-500'>Route result, reason, request dataset, and response dataset are grouped together for each endpoint.</p>
+        </div>
+        <button onClick={() => setExpanded((value) => !value)} className='rounded-2xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700'>
+          {expanded ? 'Hide' : 'Show'}
+        </button>
+      </div>
+
+      {expanded && (
+        <div className='mt-4 space-y-3'>
+          {visibleItems.map((item, idx) => (
+            <div key={`${item.route}-${idx}`} className='rounded-2xl bg-slate-50 p-4'>
+              <div className='flex flex-col gap-2 md:flex-row md:items-center md:justify-between'>
+                <div className='text-sm font-semibold text-slate-900'>{item.route}</div>
+                <div className='flex items-center gap-2'>
+                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${item.result === 'PASS' ? 'bg-emerald-100 text-emerald-700' : item.result === 'FAIL' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {item.result}
+                  </span>
+                  <span className='rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-500'>Status {item.responseDataset?.statusCode ?? 'N/A'}</span>
+                </div>
+              </div>
+
+              <div className='mt-3 text-sm leading-6 text-slate-700'>{item.reason}</div>
+
+              <div className='mt-4 grid gap-3 md:grid-cols-2'>
+                <div className='rounded-2xl bg-white p-4'>
+                  <div className='text-xs font-semibold uppercase tracking-wide text-slate-500'>Request dataset</div>
+                  <div className='mt-2 text-sm text-slate-700'>
+                    <div><span className='font-medium'>Fields:</span> {item.requestDataset?.payloadFields?.length ? item.requestDataset.payloadFields.join(', ') : 'No payload fields'}</div>
+                    <div className='mt-2'><span className='font-medium'>Source:</span> {item.requestDataset?.sourceType === 'uploaded_file' ? 'Uploaded file' : 'Generated mock data'}</div>
+                    {item.requestDataset?.sourceRecord && (
+                      <pre className='mt-3 overflow-x-auto rounded-xl bg-slate-50 p-3 text-xs text-slate-700'>{JSON.stringify(item.requestDataset.sourceRecord, null, 2)}</pre>
+                    )}
+                  </div>
+                </div>
+                <div className='rounded-2xl bg-white p-4'>
+                  <div className='text-xs font-semibold uppercase tracking-wide text-slate-500'>Response dataset</div>
+                  <div className='mt-2 text-sm text-slate-700'>
+                    <div><span className='font-medium'>Status:</span> {item.responseDataset?.statusCode ?? 'N/A'}</div>
+                    <div className='mt-2'><span className='font-medium'>Fields:</span> {item.responseDataset?.topLevelFields?.length ? item.responseDataset.topLevelFields.join(', ') : 'No response fields'}</div>
+                    {item.responseDataset?.responsePreview && (
+                      <pre className='mt-3 overflow-x-auto rounded-xl bg-slate-50 p-3 text-xs text-slate-700'>{JSON.stringify(item.responseDataset.responsePreview, null, 2)}</pre>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {items.length > 3 && (
+            <button onClick={() => setShowAll((value) => !value)} className='rounded-2xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700'>
+              {showAll ? 'Show less' : 'More'}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailedSummaryPanel({ items = [] }) {
+  if (!items.length) return null;
+
+  return (
+    <div className='space-y-3 rounded-3xl border border-slate-200 bg-white p-5'>
+      <div>
+        <h3 className='text-base font-semibold text-slate-900'>Detailed summary</h3>
+        <p className='mt-1 text-sm text-slate-500'>A route-by-route explanation of what the agent checked and what happened.</p>
+      </div>
+
+      <div className='space-y-3'>
+        {items.map((item, index) => (
+          <div key={`${item.route}-${index}`} className='rounded-2xl bg-slate-50 p-4'>
+            <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+              <div className='text-sm font-semibold text-slate-900'>{item.route}</div>
+              <div className='text-xs text-slate-500'>Status code: {item.datasetTaken?.statusCode ?? 'N/A'}</div>
+            </div>
+            <p className='mt-3 text-sm leading-6 text-slate-700'>{item.summary}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EvaluationResultTool({ result }) {
+  return (
+    <div className='max-w-5xl space-y-4 rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm'>
+      <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+        <div>
+          <div className='text-lg font-semibold text-slate-900'>Evaluation tool</div>
+          <p className='mt-2 text-sm text-slate-500'>Styled frontend insight generated from the evaluation result.</p>
+        </div>
+        <div className={`inline-flex w-fit rounded-full px-3 py-1 text-sm font-semibold ${result.decision === 'PASS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+          {result.decision}
+        </div>
+      </div>
+      <div className='rounded-3xl bg-slate-50 p-4 text-sm text-slate-700'>
+        {result.userSummary?.result || 'The agent completed the evaluation and returned the summarized result.'}
+      </div>
+      <SummaryCards result={result} />
+      <UploadedFileSummary fileSummary={result.uploadedFileSummary} />
+      <EndpointCards items={result.summary?.keyFindings || []} />
+      <DetailedSummaryPanel items={result.detailedSummary || []} />
+    </div>
+  );
+}
+
+function formatTime(value) {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
+}
+
+function buildUiMessages(apiMessages = [], configReady) {
+  const base = [];
+
+  if (!configReady && apiMessages.length === 0) {
+    base.push({ role: 'assistant', type: 'text', text: 'Welcome. Please provide the Swagger URL first so I can prepare the evaluation.' });
+    base.push({ role: 'assistant', type: 'config' });
+    return base;
+  }
+
+  for (const msg of apiMessages) {
+    if (msg.message_type === 'config_tool') {
+      base.push({
+        role: 'assistant',
+        type: 'text',
+        text: 'Swagger configuration captured through the frontend tool. Now send the evaluation prompt.',
+        createdAt: msg.created_at
+      });
+      continue;
+    }
+
+    if (msg.message_type === 'result_tool') {
+      base.push({ role: 'assistant', type: 'result_tool', result: msg.metadata, createdAt: msg.created_at });
+      continue;
+    }
+
+    base.push({
+      role: msg.role === 'tool' ? 'assistant' : msg.role,
+      type: 'text',
+      text: msg.content,
+      createdAt: msg.created_at
+    });
+  }
+
+  return base;
+}
+
+function MessageBubble({ msg }) {
+  if (msg.type === 'result_tool') {
+    return <EvaluationResultTool result={msg.result} />;
+  }
+
+  if (msg.type === 'config') return null;
+
+  return (
+    <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+      <div className={`max-w-3xl rounded-[24px] px-5 py-4 text-sm shadow-sm ${msg.role === 'user' ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-700'}`}>
+        <div>{msg.text}</div>
+        {msg.createdAt && <div className={`mt-2 text-[11px] ${msg.role === 'user' ? 'text-slate-300' : 'text-slate-400'}`}>{formatTime(msg.createdAt)}</div>}
+      </div>
+    </div>
+  );
+}
+
+async function readUploadedFile(file) {
+  if (!file) return null;
+  const content = await file.text();
+  const fileType = file.name.toLowerCase().endsWith('.json') ? 'json' : 'csv';
+  return { fileName: file.name, fileType, content };
 }
 
 function ConversationScreen({ onLogout }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [swaggerUrl, setSwaggerUrl] = useState('http://localhost:3000/openapi.yaml');
+  const [swaggerUrl, setSwaggerUrl] = useState('http://localhost:3000/openapi.json');
   const [configReady, setConfigReady] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadNotice, setUploadNotice] = useState('');
+
+  const textMessages = useMemo(() => messages.filter((msg) => msg.type === 'text'), [messages]);
+
+  const loadConversation = async (activeSessionId) => {
+    if (!activeSessionId) return;
+
+    const response = await fetch(`${agentBaseDefault}/qa/conversations/${activeSessionId}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to load conversation');
+
+    const isConfigured = Boolean(data.sessionConfig?.swaggerUrl);
+    setConfigReady(isConfigured);
+    if (data.sessionConfig?.swaggerUrl) {
+      setSwaggerUrl(data.sessionConfig.swaggerUrl.replace('openapi.yaml', 'openapi.json'));
+    }
+    setMessages(buildUiMessages(data.messages || [], isConfigured));
+  };
 
   useEffect(() => {
     const bootstrap = async () => {
       try {
         const response = await fetch(`${agentBaseDefault}/qa/bootstrap`);
         const data = await response.json();
-        const defaultValue = data?.defaults?.swaggerUrl || 'http://localhost:3000/openapi.yaml';
-        setSwaggerUrl(defaultValue);
-      } catch (_err) {}
-
-      setMessages([
-        {
-          role: 'assistant',
-          type: 'text',
-          text: 'Welcome. Please provide the Swagger URL first so I can prepare the evaluation.'
-        },
-        {
-          role: 'assistant',
-          type: 'config'
+        const defaultValue = data?.defaults?.swaggerUrl || 'http://localhost:3000/openapi.json';
+        setSwaggerUrl(defaultValue.replace('openapi.yaml', 'openapi.json'));
+        if (data?.sessionId) {
+          setSessionId(data.sessionId);
+          await loadConversation(data.sessionId);
         }
-      ]);
+      } catch (_err) {
+        setMessages(buildUiMessages([], false));
+      }
     };
 
     bootstrap();
   }, []);
 
-  const submitConfig = () => {
-    if (!swaggerUrl.trim()) return;
-    setConfigReady(true);
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: 'user',
-        type: 'text',
-        text: swaggerUrl
-      },
-      {
-        role: 'assistant',
-        type: 'text',
-        text: 'Configuration captured. Now send the evaluation prompt.'
-      }
-    ]);
+  const submitConfig = async () => {
+    if (!swaggerUrl.trim() || loading) return;
+    setLoading(true);
+    try {
+      const response = await fetch(`${agentBaseDefault}/qa/configure`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, swaggerUrl, maxRoutes: 6 })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to capture configuration');
+      if (data.sessionId) setSessionId(data.sessionId);
+      await loadConversation(data.sessionId || sessionId);
+    } catch (error) {
+      setMessages((prev) => [...prev, { role: 'assistant', type: 'text', text: error.message || 'Failed to save configuration.' }]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const sendMessage = async () => {
@@ -191,44 +381,30 @@ function ConversationScreen({ onLogout }) {
     const prompt = input.trim();
     setInput('');
     setLoading(true);
-
-    setMessages((prev) => [
-      ...prev,
-      { role: 'user', type: 'text', text: prompt },
-      { role: 'assistant', type: 'text', text: 'Running the evaluation now...' }
-    ]);
+    setUploadNotice('');
 
     try {
+      const uploadedFile = await readUploadedFile(selectedFile);
       const response = await fetch(`${agentBaseDefault}/qa/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          sessionId,
           prompt,
-          swaggerUrl,
-          maxRoutes: 6
+          maxRoutes: 6,
+          uploadedFile
         })
       });
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Agent run failed');
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          type: 'result',
-          result: data
-        }
-      ]);
+      if (data.sessionId) setSessionId(data.sessionId);
+      await loadConversation(data.sessionId || sessionId);
+      if (uploadedFile) {
+        setUploadNotice(`${uploadedFile.fileName} was used for this run.`);
+      }
     } catch (error) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          type: 'text',
-          text: error.message || 'Something went wrong while running the evaluation.'
-        }
-      ]);
+      setMessages((prev) => [...prev, { role: 'assistant', type: 'text', text: error.message || 'Something went wrong while running the evaluation.' }]);
     } finally {
       setLoading(false);
     }
@@ -237,81 +413,80 @@ function ConversationScreen({ onLogout }) {
   return (
     <div className='min-h-screen bg-[#f6f1e7] p-4 md:p-6'>
       <div className='mx-auto flex min-h-[calc(100vh-2rem)] max-w-6xl flex-col rounded-[32px] border border-slate-200 bg-white shadow-2xl'>
-        <div className='flex items-center justify-between border-b border-slate-200 px-6 py-4'>
-          <div className='text-sm text-slate-500'>Conversation mode</div>
-          <button onClick={onLogout} className='rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-700'>Logout</button>
+        <div className='flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4'>
+          <div>
+            <div className='text-sm text-slate-500'>Conversation mode</div>
+            <div className='mt-1 text-xs text-slate-400'>Session ID: {sessionId || 'Creating...'}</div>
+          </div>
+          <div className='flex items-center gap-3'>
+            <button onClick={() => loadConversation(sessionId)} className='rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-700'>Refresh history</button>
+            <button onClick={onLogout} className='rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-700'>Logout</button>
+          </div>
         </div>
 
-        <div className='flex-1 space-y-4 overflow-y-auto bg-[#f9f7f2] p-4 md:p-6'>
-          {messages.map((msg, idx) => {
-            if (msg.type === 'config') {
-              return (
-                <div key={idx} className='max-w-3xl rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm'>
-                  <div className='text-sm font-semibold text-slate-900'>Swagger configuration</div>
-                  <p className='mt-2 text-sm text-slate-500'>Just put only the Swagger URL field for now.</p>
-                  <input
-                    className='mt-4 w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500'
-                    value={swaggerUrl}
-                    onChange={(e) => setSwaggerUrl(e.target.value)}
-                    placeholder='http://localhost:3000/openapi.yaml'
-                  />
-                  <button onClick={submitConfig} className='mt-4 rounded-2xl bg-blue-600 px-5 py-3 font-semibold text-white'>
-                    Continue
-                  </button>
-                </div>
-              );
-            }
+        <div className='grid flex-1 gap-0 lg:grid-cols-[1fr_320px]'>
+          <div className='flex flex-col'>
+            <div className='flex-1 space-y-4 overflow-y-auto bg-[#f9f7f2] p-4 md:p-6'>
+              {!configReady && <SwaggerConfigTool swaggerUrl={swaggerUrl} setSwaggerUrl={setSwaggerUrl} onContinue={submitConfig} disabled={loading} />}
+              {messages.map((msg, idx) => (
+                <MessageBubble key={`${msg.type}-${idx}-${msg.createdAt || 'na'}`} msg={msg} />
+              ))}
+            </div>
 
-            if (msg.type === 'result') {
-              return (
-                <div key={idx} className='max-w-4xl space-y-4 rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm'>
-                  <div>
-                    <div className='text-lg font-semibold text-slate-900'>Execution summary</div>
-                    <p className='mt-2 text-sm text-slate-500'>{msg.result.userSummary?.result}</p>
+            <div className='border-t border-slate-200 bg-white p-4'>
+              <div className='mx-auto max-w-5xl'>
+                {!configReady && <div className='mb-3 rounded-full bg-slate-100 px-4 py-2 text-xs text-slate-500 w-fit'>Complete the frontend config tool to continue</div>}
+                {configReady && (
+                  <div className='mb-3 flex flex-wrap gap-2'>
+                    {starterPrompts.map((item) => (
+                      <button key={item} onClick={() => setInput(item)} className='rounded-full border border-slate-300 bg-white px-4 py-2 text-left text-xs text-slate-600'>
+                        {item}
+                      </button>
+                    ))}
                   </div>
-                  <SummaryCards result={msg.result} />
-                  <FindingsTable items={msg.result.summary?.keyFindings || []} />
-                </div>
-              );
-            }
+                )}
 
-            return (
-              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-3xl rounded-[24px] px-5 py-4 text-sm shadow-sm ${msg.role === 'user' ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-700'}`}>
-                  {msg.text}
+                <div className='mb-3 rounded-3xl border border-slate-200 bg-slate-50 p-4'>
+                  <div className='text-sm font-semibold text-slate-900'>Optional data upload</div>
+                  <p className='mt-1 text-sm text-slate-500'>Upload a CSV or JSON file. The agent will read the file and use it during execution instead of relying only on mock data.</p>
+                  <div className='mt-3 flex flex-col gap-3 md:flex-row md:items-center'>
+                    <input type='file' accept='.csv,.json,application/json,text/csv' onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className='block w-full text-sm text-slate-600 file:mr-4 file:rounded-2xl file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white' />
+                    {selectedFile && <div className='rounded-full bg-white px-4 py-2 text-xs font-medium text-slate-600'>{selectedFile.name}</div>}
+                  </div>
+                  {uploadNotice && <div className='mt-3 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700'>{uploadNotice}</div>}
                 </div>
-              </div>
-            );
-          })}
-        </div>
 
-        <div className='border-t border-slate-200 bg-white p-4'>
-          <div className='mx-auto max-w-5xl'>
-            {!configReady && (
-              <div className='mb-3 flex flex-wrap gap-2'>
-                <div className='rounded-full bg-slate-100 px-4 py-2 text-xs text-slate-500'>Complete the Swagger field to continue</div>
-              </div>
-            )}
-            {configReady && (
-              <div className='mb-3 flex flex-wrap gap-2'>
-                {starterPrompts.map((item) => (
-                  <button key={item} onClick={() => setInput(item)} className='rounded-full border border-slate-300 bg-white px-4 py-2 text-left text-xs text-slate-600'>
-                    {item}
+                <div className='flex items-end gap-3'>
+                  <textarea
+                    className='min-h-[90px] flex-1 resize-none rounded-[24px] border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 disabled:bg-slate-100'
+                    placeholder={configReady ? 'Send the evaluation prompt...' : 'Complete the Swagger URL field first...'}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    disabled={!configReady}
+                  />
+                  <button onClick={sendMessage} disabled={!configReady || loading} className='rounded-full bg-blue-600 px-5 py-4 font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300'>
+                    {loading ? 'Running...' : 'Send'}
                   </button>
-                ))}
+                </div>
               </div>
-            )}
-            <div className='flex items-end gap-3'>
-              <textarea
-                className='min-h-[90px] flex-1 resize-none rounded-[24px] border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 disabled:bg-slate-100'
-                placeholder={configReady ? 'Send the evaluation prompt...' : 'Complete the Swagger URL field first...'}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                disabled={!configReady}
-              />
-              <button onClick={sendMessage} disabled={!configReady || loading} className='rounded-full bg-blue-600 px-5 py-4 font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300'>
-                {loading ? 'Running...' : 'Send'}
-              </button>
+            </div>
+          </div>
+
+          <div className='border-t border-slate-200 bg-white p-4 lg:border-l lg:border-t-0'>
+            <div className='space-y-4'>
+              <div className='rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm'>
+                <div className='text-sm font-semibold text-slate-900'>History panel</div>
+                <p className='mt-1 text-sm text-slate-500'>This frontend reads the saved SQLite conversation and shows the same history for the active session.</p>
+                <div className='mt-4 space-y-3'>
+                  {textMessages.slice(-6).map((msg, index) => (
+                    <div key={`${msg.text}-${index}`} className='rounded-2xl bg-slate-50 p-3'>
+                      <div className='text-xs font-semibold uppercase tracking-wide text-slate-500'>{msg.role}</div>
+                      <div className='mt-1 text-sm text-slate-700'>{msg.text}</div>
+                    </div>
+                  ))}
+                  {!textMessages.length && <div className='rounded-2xl bg-slate-50 p-3 text-sm text-slate-500'>No saved messages yet.</div>}
+                </div>
+              </div>
             </div>
           </div>
         </div>

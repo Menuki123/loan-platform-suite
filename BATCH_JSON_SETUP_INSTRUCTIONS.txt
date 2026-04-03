@@ -1,0 +1,62 @@
+Loan Platform Batch JSON Instructions
+====================================
+
+What changed in this update
+---------------------------
+1. Added a new domain-relevant sample file:
+   sample-data/loan-platform-batch-scenarios.json
+2. Added this instruction file.
+3. No core frontend/backend code was changed in this packaging step.
+   The main upload flow remains the same as the previous file-upload zip.
+
+What this JSON file is for
+--------------------------
+This file is designed for your loan platform, not the generic login example.
+It includes multiple scenarios for:
+- customer onboarding
+- underwriting eligibility
+- loan creation
+- payment validation
+
+How to use it
+-------------
+Backend:
+  docker compose down
+  docker compose up --build
+
+Frontend:
+  cd frontend
+  npm install
+  npm run dev
+
+Open:
+  http://localhost:5173
+
+Login:
+  username: admin
+  password: password123
+
+Then:
+1. Enter your Swagger/OpenAPI URL
+   Example:
+   http://localhost:3000/openapi.yaml
+   or
+   http://localhost:3000/openapi.json
+
+2. Upload the file:
+   sample-data/loan-platform-batch-scenarios.json
+
+3. Enter a prompt such as:
+   Evaluate customer onboarding, underwriting, loan creation, and payment scenarios using the uploaded dataset.
+
+4. Click Send.
+
+Important current behavior
+--------------------------
+In the current upload flow, the system may still execute only the first row/object unless you have already extended the batch logic in code.
+So this package gives you a project-relevant batch dataset and instructions, but it does not claim that full multi-row execution has already been implemented unless you have separately added that logic.
+
+How to explain it to your boss
+------------------------------
+You can say:
+"I replaced the generic sample approach with a domain-specific batch dataset for the loan platform. The uploaded JSON now contains customer, underwriting, loan, and payment scenarios, which is more relevant to the actual project and supports the move toward practical batch execution."

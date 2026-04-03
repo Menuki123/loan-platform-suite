@@ -1,0 +1,112 @@
+[
+  {
+    "testCase": "1. Valid customer onboarding",
+    "action": "create_customer",
+    "full_name": "John Silva",
+    "age": 30,
+    "employment_type": "PERMANENT",
+    "monthly_income": 6000,
+    "monthly_expenses": 2500,
+    "credit_score": 720,
+    "expectedHttpStatus": 201,
+    "expectedOutcome": "PASS"
+  },
+  {
+    "testCase": "2. Underage customer rejected",
+    "action": "create_customer",
+    "full_name": "Teen Applicant",
+    "age": 17,
+    "employment_type": "PERMANENT",
+    "monthly_income": 3200,
+    "monthly_expenses": 1200,
+    "credit_score": 680,
+    "expectedHttpStatus": 400,
+    "expectedOutcome": "FAIL"
+  },
+  {
+    "testCase": "3. Product A eligibility pass",
+    "action": "check_eligibility",
+    "full_name": "Maria Perera",
+    "age": 33,
+    "employment_type": "PERMANENT",
+    "monthly_income": 7000,
+    "monthly_expenses": 2800,
+    "credit_score": 750,
+    "product_type": "PRODUCT_A",
+    "expectedHttpStatus": 200,
+    "expectedOutcome": "ELIGIBLE"
+  },
+  {
+    "testCase": "4. Low credit score eligibility fail",
+    "action": "check_eligibility",
+    "full_name": "Risky Customer",
+    "age": 29,
+    "employment_type": "PERMANENT",
+    "monthly_income": 5000,
+    "monthly_expenses": 2200,
+    "credit_score": 450,
+    "product_type": "PRODUCT_A",
+    "expectedHttpStatus": 200,
+    "expectedOutcome": "INELIGIBLE"
+  },
+  {
+    "testCase": "5. Income lower than expenses",
+    "action": "check_eligibility",
+    "full_name": "Cashflow Issue",
+    "age": 35,
+    "employment_type": "PERMANENT",
+    "monthly_income": 2000,
+    "monthly_expenses": 2600,
+    "credit_score": 700,
+    "product_type": "PRODUCT_A",
+    "expectedHttpStatus": 200,
+    "expectedOutcome": "INELIGIBLE"
+  },
+  {
+    "testCase": "6. Valid loan creation",
+    "action": "create_loan",
+    "customer_id": 1,
+    "product_type": "PRODUCT_A",
+    "loan_amount": 10000,
+    "interest_rate": 12,
+    "loan_term_months": 12,
+    "expectedHttpStatus": 201,
+    "expectedOutcome": "PASS"
+  },
+  {
+    "testCase": "7. Invalid PRODUCT_B employment rule",
+    "action": "create_loan",
+    "customer_id": 1,
+    "product_type": "PRODUCT_B",
+    "employment_type": "PERMANENT",
+    "loan_amount": 15000,
+    "interest_rate": 10,
+    "loan_term_months": 24,
+    "expectedHttpStatus": 400,
+    "expectedOutcome": "FAIL"
+  },
+  {
+    "testCase": "8. Payment before disbursement",
+    "action": "make_payment",
+    "loan_id": 1,
+    "payment_amount": 500,
+    "expectedHttpStatus": 400,
+    "expectedOutcome": "FAIL"
+  },
+  {
+    "testCase": "9. Overpayment attempt",
+    "action": "make_payment",
+    "loan_id": 2,
+    "payment_amount": 999999,
+    "expectedHttpStatus": 400,
+    "expectedOutcome": "FAIL"
+  },
+  {
+    "testCase": "10. Valid repayment",
+    "action": "make_payment",
+    "loan_id": 2,
+    "payment_amount": 500,
+    "expectedHttpStatus": 201,
+    "expectedOutcome": "PASS"
+  }
+]

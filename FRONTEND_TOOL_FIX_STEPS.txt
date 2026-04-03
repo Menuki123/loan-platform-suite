@@ -1,0 +1,26 @@
+UPDATED FRONTEND + AGENT HISTORY FLOW
+
+1. Start docker services:
+   docker compose up --build
+
+2. Start frontend:
+   cd frontend
+   npm install
+   npm run dev
+
+3. Login to frontend:
+   username: admin
+   password: password123
+
+4. In the frontend:
+   - first capture the Swagger URL
+   - send a prompt
+   - the UI now reloads the saved SQLite conversation from agent-server
+   - use Submit for approval, then Approve workflow
+
+5. Direct history check:
+   http://localhost:4000/qa/conversations/<sessionId>
+
+6. Workflow endpoints:
+   POST http://localhost:4000/qa/workflow/<sessionId>/submit
+   POST http://localhost:4000/qa/workflow/<sessionId>/approve

@@ -1,0 +1,2 @@
+customer_id,product_type,loan_amount,interest_rate,loan_term_months,loan_id,payment_amount,payment_method,reference_number
+1,PRODUCT_A,5000,10,12,1,500,CARD,REF001

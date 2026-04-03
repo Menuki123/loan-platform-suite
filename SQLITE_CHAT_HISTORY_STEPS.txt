@@ -1,0 +1,52 @@
+SQLite chat persistence added on the agent server.
+
+What changed:
+- agent-server now stores frontend tool config, user prompts, running status, result tool output, and final result message into SQLite.
+- new database file path inside the container/app: /app/db/chat-history.db
+- new routes:
+  - POST /qa/configure
+  - GET /qa/conversations/:sessionId
+- frontend now:
+  - receives sessionId from bootstrap
+  - saves config through POST /qa/configure
+  - sends only prompt + sessionId on evaluation
+
+How to run with Docker:
+1. From project root:
+   docker compose down -v
+   docker compose up --build
+
+2. Open:
+   http://localhost:3000/health
+   http://localhost:3000/openapi.json
+   http://localhost:4000/health
+
+3. Run frontend:
+   cd frontend
+   npm install
+   npm run dev
+
+4. Login:
+   demo.user / Xgen@123
+
+5. In conversation:
+   - keep Swagger URL as http://localhost:3000/openapi.json
+   - click Continue
+   - send prompt
+
+6. To verify saved chat history:
+   - watch agent server logs in Docker Desktop or terminal
+   - open in browser or Postman:
+     http://localhost:4000/qa/conversations/<sessionId>
+
+How to get sessionId:
+- It is created during GET /qa/bootstrap and reused by the frontend.
+- You can inspect Network tab in browser DevTools for /qa/bootstrap or /qa/run response.
+
+Suggested screenshots:
+- Docker Desktop showing both api-server and agent-server containers running
+- browser showing http://localhost:3000/openapi.json
+- browser showing http://localhost:4000/health
+- conversation screen after Continue
+- conversation result tool
+- browser/Postman showing GET /qa/conversations/<sessionId>
