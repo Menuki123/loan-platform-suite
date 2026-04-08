@@ -58,8 +58,6 @@ app.get('/', (_req, res) => {
       run: 'POST /qa/run',
       runWithFile: 'POST /qa/run (optionally include uploadedFile JSON payload)',
       conversation: 'GET /qa/conversations/:sessionId',
-      submitWorkflow: 'POST /qa/workflow/:sessionId/submit',
-      approveWorkflow: 'POST /qa/workflow/:sessionId/approve'
     }
   });
 });

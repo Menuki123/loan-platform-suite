@@ -28,8 +28,8 @@ function LoginScreen({ onLogin }) {
           <div className='hidden rounded-l-[32px] bg-slate-900 p-12 text-white md:block'>
             <div className='max-w-sm'>
               <div className='text-sm uppercase tracking-[0.3em] text-slate-300'>Loan platform suite</div>
-              <h1 className='mt-6 text-4xl font-bold leading-tight'>Conversational QA agent with file-driven execution.</h1>
-              <p className='mt-6 text-slate-300'>Sign in to test APIs, upload CSV or JSON data, and save conversation history in SQLite.</p>
+              <h1 className='mt-6 text-4xl font-bold leading-tight'>Batch scenario execution for the loan platform.</h1>
+              <p className='mt-6 text-slate-300'>Sign in to upload loan-platform data, run scenarios, and review the execution history.</p>
             </div>
           </div>
 
@@ -134,8 +134,8 @@ function EndpointCards({ items = [] }) {
     <div className='rounded-3xl border border-slate-200 bg-white p-5'>
       <div className='flex flex-wrap items-center justify-between gap-3'>
         <div>
-          <h3 className='text-base font-semibold text-slate-900'>API endpoints used by the agent</h3>
-          <p className='mt-1 text-sm text-slate-500'>Route result, reason, request dataset, and response dataset are grouped together for each endpoint.</p>
+          <h3 className='text-base font-semibold text-slate-900'>Executed API routes</h3>
+          <p className='mt-1 text-sm text-slate-500'>Each card shows the route result, reason, request dataset, and response dataset together.</p>
         </div>
         <button onClick={() => setExpanded((value) => !value)} className='rounded-2xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700'>
           {expanded ? 'Hide' : 'Show'}
@@ -201,7 +201,7 @@ function DetailedSummaryPanel({ items = [] }) {
     <div className='space-y-3 rounded-3xl border border-slate-200 bg-white p-5'>
       <div>
         <h3 className='text-base font-semibold text-slate-900'>Detailed summary</h3>
-        <p className='mt-1 text-sm text-slate-500'>A route-by-route explanation of what the agent checked and what happened.</p>
+        <p className='mt-1 text-sm text-slate-500'>A route-by-route summary of what was executed and what happened.</p>
       </div>
 
       <div className='space-y-3'>
@@ -224,8 +224,8 @@ function EvaluationResultTool({ result }) {
     <div className='max-w-5xl space-y-4 rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm'>
       <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <div>
-          <div className='text-lg font-semibold text-slate-900'>Evaluation tool</div>
-          <p className='mt-2 text-sm text-slate-500'>Styled frontend insight generated from the evaluation result.</p>
+          <div className='text-lg font-semibold text-slate-900'>Batch execution results</div>
+          <p className='mt-2 text-sm text-slate-500'>Actual output from the uploaded dataset execution.</p>
         </div>
         <div className={`inline-flex w-fit rounded-full px-3 py-1 text-sm font-semibold ${result.decision === 'PASS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
           {result.decision}
@@ -415,7 +415,7 @@ function ConversationScreen({ onLogout }) {
       <div className='mx-auto flex min-h-[calc(100vh-2rem)] max-w-6xl flex-col rounded-[32px] border border-slate-200 bg-white shadow-2xl'>
         <div className='flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4'>
           <div>
-            <div className='text-sm text-slate-500'>Conversation mode</div>
+            <div className='text-sm text-slate-500'>Demo mode</div>
             <div className='mt-1 text-xs text-slate-400'>Session ID: {sessionId || 'Creating...'}</div>
           </div>
           <div className='flex items-center gap-3'>
@@ -447,8 +447,8 @@ function ConversationScreen({ onLogout }) {
                 )}
 
                 <div className='mb-3 rounded-3xl border border-slate-200 bg-slate-50 p-4'>
-                  <div className='text-sm font-semibold text-slate-900'>Optional data upload</div>
-                  <p className='mt-1 text-sm text-slate-500'>Upload a CSV or JSON file. The agent will read the file and use it during execution instead of relying only on mock data.</p>
+                  <div className='text-sm font-semibold text-slate-900'>Upload dataset</div>
+                  <p className='mt-1 text-sm text-slate-500'>Upload a CSV or JSON file. The agent will read the dataset and execute the relevant loan-platform scenarios.</p>
                   <div className='mt-3 flex flex-col gap-3 md:flex-row md:items-center'>
                     <input type='file' accept='.csv,.json,application/json,text/csv' onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className='block w-full text-sm text-slate-600 file:mr-4 file:rounded-2xl file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white' />
                     {selectedFile && <div className='rounded-full bg-white px-4 py-2 text-xs font-medium text-slate-600'>{selectedFile.name}</div>}

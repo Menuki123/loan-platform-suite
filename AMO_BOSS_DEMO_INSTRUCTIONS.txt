@@ -1,0 +1,43 @@
+AMO DEMO INSTRUCTIONS
+
+This version is prepared for a clean boss demo.
+It focuses on actual meaningful output:
+- upload one CSV or JSON file
+- run the agent once
+- see row-level execution results
+- review request and response datasets
+- show saved history in the frontend
+
+HOW TO RUN
+1. Start backend
+   docker compose up --build
+
+2. Start frontend in a second terminal
+   cd frontend
+   npm install
+   npm run dev
+
+3. Open
+   http://localhost:5173
+
+4. Login
+   username: admin
+   password: password123
+
+5. Enter Swagger URL
+   http://localhost:3000/openapi.json
+
+6. Upload a dataset from sample-data
+   - loan-platform-batch-scenarios.json
+   - loan-input.json
+   - loan-input.csv
+
+7. Prompt to use
+   Evaluate the uploaded loan platform scenarios.
+
+WHAT TO SHOW IN THE DEMO
+- Uploaded dataset summary
+- Batch execution results
+- Executed API routes
+- Request dataset and response dataset inside each card
+- History panel showing saved conversation state
