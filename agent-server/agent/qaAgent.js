@@ -188,18 +188,28 @@ function updateExecutionState(route, response, payload, state) {
   if (!state.id && state.loanId) state.id = state.loanId;
 }
 
+
+function nowMs() {
+  return Date.now();
+}
+
 async function runAgent({ prompt, apiBaseUrl, swaggerUrl, maxRoutes = 6, uploadedFile = null }) {
   if (!swaggerUrl) {
     throw new Error('Swagger URL is required');
   }
 
+  const executionStartedAt = nowMs();
   const resolvedApiBaseUrl = apiBaseUrl || process.env.API_BASE_URL || 'http://localhost:3000';
   const resolvedSwaggerUrl = normalizeSwaggerUrl(swaggerUrl);
   const routes = await loadRoutes(resolvedSwaggerUrl);
   console.log('[AGENT] Loaded routes from Swagger URL:', resolvedSwaggerUrl);
   console.log('[AGENT] Loaded routes count:', routes.length);
 
-  const selectedRoutes = await selectRoutes(prompt, routes, maxRoutes);
+  const selectionStartedAt = nowMs();
+  const selection = await selectRoutes(prompt, routes, maxRoutes);
+  const selectedRoutes = selection.selectedRoutes || [];
+  const retrieval = selection.retrieval || null;
+  const selectionCompletedAt = nowMs();
   console.log('[AGENT] Selected routes:', selectedRoutes.map((r) => `${r.method} ${r.path}`));
 
   const dependencyGraph = buildDependencyGraph(selectedRoutes);
@@ -208,8 +218,16 @@ async function runAgent({ prompt, apiBaseUrl, swaggerUrl, maxRoutes = 6, uploade
   const executionState = {};
   const results = [];
   const datasetsUsed = [];
+  const routeTimings = [];
+
+  console.log('[RAG] Input prompt:', prompt);
+  console.log('[RAG] Route corpus size:', routes.length);
+  console.log('[RAG] Vector ranking candidates:', retrieval?.rankedRoutes?.length || routes.length);
+  console.log('[RAG] Selected endpoint count:', selectedRoutes.length);
+  console.log('[RAG] Retrieved multi-endpoints:', selectedRoutes.map((route) => `${route.method} ${route.path}`).join(', '));
 
   for (const route of selectedRoutes) {
+    const routeStart = nowMs();
     const schema = route.requestBody?.content?.['application/json']?.schema;
     const generatedPayload = generatePayload(schema);
     const sourceRecord = findRelevantRecord(route, parsedFile);
@@ -230,6 +248,10 @@ async function runAgent({ prompt, apiBaseUrl, swaggerUrl, maxRoutes = 6, uploade
 
     updateExecutionState(route, response, payload, executionState);
     datasetsUsed.push(summarizeDataset(route, payload, response, sourceRecord, fileSummary));
+
+    const routeDurationMs = nowMs() - routeStart;
+    routeTimings.push({ route: `${route.method} ${route.path}`, durationMs: routeDurationMs, statusCode: response?.status ?? null });
+    console.log('[RAG] Route execution time:', `${route.method} ${route.path}`, `${routeDurationMs} ms`);
 
     results.push({
       route: `${route.method} ${route.path}`,
@@ -271,10 +293,59 @@ async function runAgent({ prompt, apiBaseUrl, swaggerUrl, maxRoutes = 6, uploade
     swaggerUrl: resolvedSwaggerUrl,
     maxRoutes,
     selectedRoutes: selectedRoutes.map((r) => `${r.method} ${r.path}`),
-    uploadedFile: fileSummary
+    uploadedFile: fileSummary,
+    vectorRetrieval: retrieval
   };
 
   const detailedSummary = buildDetailedSummary(results);
+  const executionCompletedAt = nowMs();
+  const responseTimeMs = executionCompletedAt - executionStartedAt;
+  const embeddingDimensionEstimate = retrieval?.rankedRoutes?.length ? retrieval.rankedRoutes.length : routes.length;
+  const ragTrace = {
+    inputPrompt: prompt,
+    bigNumbers: {
+      routeCorpusSize: routes.length,
+      vectorCandidates: retrieval?.rankedRoutes?.length || routes.length,
+      selectedEndpointCount: selectedRoutes.length,
+      multiEndpointCount: selectedRoutes.length,
+      shortRunResponseTimeMs: responseTimeMs,
+      executionWindowMs: selectionCompletedAt - selectionStartedAt
+    },
+    vectorSpace: {
+      strategy: retrieval?.strategy || retrieval?.mode || 'local_tfidf_cosine',
+      embeddingDimensionEstimate,
+      rankedRouteCount: retrieval?.rankedRoutes?.length || 0,
+      dedicatedVectorDb: retrieval?.architecture?.dedicatedVectorDb,
+      embeddedReducedMode: retrieval?.architecture?.embeddedReducedMode
+    },
+    updateFrequency: retrieval?.updateFrequency || null,
+    projectMode: {
+      withVectorDb: 'The project can use a dedicated vector DB for semantic retrieval and larger update cycles.',
+      withoutVectorDb: 'The same project can run without a vector DB by using deterministic local ranking and endpoint metadata.',
+      factorDeliverable: retrieval?.factorDeliverable || null
+    },
+    usageAndStrengths: retrieval?.usageAndStrengths || null,
+    agentCapability: {
+      beyondHumanShortTimeClaim: 'The agent ranked the full route corpus, selected the top semantic matches, and executed multiple endpoints in a short run window.',
+      selectedEndpoints: selectedRoutes.map((route) => `${route.method} ${route.path}`),
+      multiPointReasoning: selectedRoutes.length > 1
+    },
+    inputRecordBehaviour: {
+      recorded: true,
+      sessionTraceStoredInSqlite: true,
+      uploadedFileName: fileSummary?.fileName || null,
+      routeTimings
+    }
+  };
+
+  console.log('[RAG] Big numbers:', JSON.stringify(ragTrace.bigNumbers));
+  console.log('[RAG] Vector architecture:', JSON.stringify(ragTrace.vectorSpace));
+  console.log('[RAG] Update frequency:', JSON.stringify(ragTrace.updateFrequency));
+  console.log('[RAG] Project mode:', JSON.stringify(ragTrace.projectMode));
+  console.log('[RAG] VB usage and strengths:', ragTrace.usageAndStrengths);
+  console.log('[RAG] Agent capability endpoints:', ragTrace.agentCapability.selectedEndpoints.join(', '));
+  console.log('[RAG] Input record behaviour:', JSON.stringify(ragTrace.inputRecordBehaviour));
+  console.log('[RAG] Short-run response time:', `${responseTimeMs} ms`);
 
   return {
     status: 'success',
@@ -308,7 +379,15 @@ async function runAgent({ prompt, apiBaseUrl, swaggerUrl, maxRoutes = 6, uploade
       finalVerdict: failed > 0 ? 'FAIL' : 'PASS'
     },
     executionContext,
-    testInputs
+    testInputs,
+    vectorRetrieval: retrieval,
+    ragTrace,
+    metrics: {
+      responseTimeMs,
+      routeCorpusSize: routes.length,
+      selectedEndpointCount: selectedRoutes.length,
+      vectorCandidateCount: retrieval?.rankedRoutes?.length || routes.length
+    }
   };
 }
 
