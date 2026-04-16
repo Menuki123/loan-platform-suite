@@ -40,3 +40,7 @@ Example body:
 - self-healing retries
 - workflow dependency output mapping
 - HTML QA dashboard
+
+## Bulk dataset loop mode
+
+Upload one dataset with multiple rows and call `POST /qa/run` from the frontend. When the agent detects more than one record, it switches to bulk mode automatically. Each row is processed in a loop, matched to a route using the row `action`, and returned in `caseResults`.

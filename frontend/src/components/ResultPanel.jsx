@@ -6,6 +6,97 @@ function JsonBlock({ data }) {
   );
 }
 
+function getRouteStatus(item = {}) {
+  const directStatus = (item.status || item.result || '').toString().trim().toUpperCase();
+  if (directStatus === 'PASS' || directStatus === 'FAIL') return directStatus;
+
+  const text = [
+    item.reason,
+    item.message,
+    item.description,
+    item.summary,
+    item.error,
+    item.responseMessage,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  const failSignals = [
+    'fail',
+    'failed',
+    'error',
+    '404',
+    '400',
+    '500',
+    'did not match',
+    'not match',
+    'not found',
+    'invalid',
+    'rejected',
+    'exception',
+    'unable',
+    'mismatch',
+    'business rule',
+    'validation'
+  ];
+
+  const passSignals = [
+    'pass',
+    'passed',
+    'success',
+    'valid response',
+    'behaved as expected',
+    'as expected',
+    'matched expected',
+    'completed successfully'
+  ];
+
+  if (failSignals.some((signal) => text.includes(signal))) return 'FAIL';
+  if (passSignals.some((signal) => text.includes(signal))) return 'PASS';
+  return 'PASS';
+}
+
+function getRouteReason(item = {}) {
+  return (
+    item.reason ||
+    item.message ||
+    item.description ||
+    item.summary ||
+    item.error ||
+    item.responseMessage ||
+    'No additional details were provided.'
+  );
+}
+
+function getRouteLabel(item = {}) {
+  if (item.route) return item.route;
+  const method = item.method || item.httpMethod || '';
+  const path = item.path || item.endpoint || item.url || '';
+  return [method, path].filter(Boolean).join(' ').trim() || 'Route check';
+}
+
+function RouteCard({ item }) {
+  const status = getRouteStatus(item);
+  const reason = getRouteReason(item);
+  const label = getRouteLabel(item);
+
+  return (
+    <div className='rounded-3xl bg-slate-50 px-6 py-5'>
+      <div className='flex items-center justify-between gap-4'>
+        <div className='text-2xl font-semibold text-slate-950'>{label}</div>
+        <span className={`ml-auto badge ${status === 'PASS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+          {status}
+        </span>
+      </div>
+      <p className='mt-3 text-sm font-medium text-slate-700'>
+        Status: <strong>{status}</strong>
+      </p>
+      <p className='mt-3 text-sm leading-7 text-slate-600'>{reason}</p>
+    </div>
+  );
+}
+
 function ResultTable({ items = [] }) {
   return (
     <div className='overflow-hidden rounded-2xl border border-slate-200'>
@@ -13,22 +104,25 @@ function ResultTable({ items = [] }) {
         <thead className='bg-slate-50'>
           <tr>
             <th className='px-4 py-3 text-left font-semibold text-slate-700'>Route</th>
-            <th className='px-4 py-3 text-left font-semibold text-slate-700'>Result</th>
+            <th className='px-4 py-3 text-left font-semibold text-slate-700'>Status</th>
             <th className='px-4 py-3 text-left font-semibold text-slate-700'>Reason</th>
           </tr>
         </thead>
         <tbody className='divide-y divide-slate-100 bg-white'>
-          {items.map((item, idx) => (
-            <tr key={`${item.route}-${idx}`}>
-              <td className='px-4 py-3 text-slate-900'>{item.route}</td>
-              <td className='px-4 py-3'>
-                <span className={`badge ${item.result === 'PASS' ? 'bg-emerald-100 text-emerald-700' : item.result === 'FAIL' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                  {item.result}
-                </span>
-              </td>
-              <td className='px-4 py-3 text-slate-600'>{item.reason}</td>
-            </tr>
-          ))}
+          {items.map((item, idx) => {
+            const status = getRouteStatus(item);
+            return (
+              <tr key={`${getRouteLabel(item)}-${idx}`}>
+                <td className='px-4 py-3 text-slate-900'>{getRouteLabel(item)}</td>
+                <td className='px-4 py-3'>
+                  <span className={`badge ${status === 'PASS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                    {status}
+                  </span>
+                </td>
+                <td className='px-4 py-3 text-slate-600'>{getRouteReason(item)}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -85,9 +179,6 @@ export default function ResultPanel({ result, viewMode = 'table' }) {
       <div className='card'>
         <div className='flex items-center justify-between gap-3'>
           <h3 className='text-lg font-semibold'>User summary</h3>
-          <span className={`badge ${result.decision === 'PASS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-            {result.decision}
-          </span>
         </div>
         <p className='mt-3 text-sm text-slate-700'>{result.userSummary?.overview}</p>
         <p className='mt-2 text-sm text-slate-600'>{result.userSummary?.result}</p>
@@ -101,17 +192,21 @@ export default function ResultPanel({ result, viewMode = 'table' }) {
           <div className='card'>
             <h3 className='text-lg font-semibold'>Evaluation list</h3>
             <ul className='mt-4 space-y-3 text-sm text-slate-600'>
-              {keyFindings.map((item, idx) => (
-                <li key={idx} className='rounded-2xl bg-slate-50 px-4 py-3'>
-                  <div className='flex items-center justify-between gap-3'>
-                    <div className='font-medium text-slate-900'>{item.route}</div>
-                    <span className={`badge ${item.result === 'PASS' ? 'bg-emerald-100 text-emerald-700' : item.result === 'FAIL' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {item.result}
-                    </span>
-                  </div>
-                  <div className='mt-2 text-slate-500'>{item.reason}</div>
-                </li>
-              ))}
+              {keyFindings.map((item, idx) => {
+                const status = getRouteStatus(item);
+                return (
+                  <li key={idx} className='rounded-2xl bg-slate-50 px-4 py-3'>
+                    <div className='flex items-center justify-between gap-3'>
+                      <div className='font-medium text-slate-900'>{getRouteLabel(item)}</div>
+                      <span className={`badge ${status === 'PASS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                        {status}
+                      </span>
+                    </div>
+                    <div className='mt-2 text-slate-700'>Status: <strong>{status}</strong></div>
+                    <div className='mt-2 text-slate-500'>{getRouteReason(item)}</div>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </div>
@@ -120,6 +215,17 @@ export default function ResultPanel({ result, viewMode = 'table' }) {
           <h3 className='text-lg font-semibold'>Evaluation table</h3>
           <div className='mt-4'>
             <ResultTable items={keyFindings} />
+          </div>
+        </div>
+      )}
+
+      {keyFindings.length > 0 && (
+        <div className='card'>
+          <h3 className='text-lg font-semibold'>Case equate by agent</h3>
+          <div className='mt-4 space-y-4'>
+            {keyFindings.map((item, idx) => (
+              <RouteCard key={`${getRouteLabel(item)}-card-${idx}`} item={item} />
+            ))}
           </div>
         </div>
       )}

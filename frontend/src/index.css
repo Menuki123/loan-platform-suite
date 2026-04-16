@@ -14,3 +14,17 @@ body {
 .badge {
   @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold;
 }
+
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.route-status-text { font-weight:500; margin-top:5px; }

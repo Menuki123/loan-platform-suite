@@ -124,6 +124,307 @@ function findRelevantRecord(route, parsedFile) {
   return bestRecord;
 }
 
+
+function actionRouteCandidates(action = '') {
+  const normalized = String(action || '').trim().toLowerCase();
+  const routeMap = {
+    create_customer: ['POST /customers'],
+    check_eligibility: ['POST /underwriting/check-eligibility'],
+    create_loan: ['POST /loans'],
+    make_payment: ['POST /payments'],
+    active_loans_report: ['GET /reports/active-loans'],
+    customer_loan_summary: ['GET /reports/customer-loan-summary'],
+    payment_history_report: ['GET /reports/payment-history']
+  };
+  return routeMap[normalized] || [];
+}
+
+function findRouteForRecord(record, routes = [], fallbackRoutes = []) {
+  const candidates = actionRouteCandidates(record?.action);
+  if (candidates.length) {
+    const matched = routes.find((route) => candidates.includes(`${route.method} ${route.path}`));
+    if (matched) return matched;
+  }
+
+  const fallbackSelection = fallbackRoutes.find((route) => {
+    const schema = route.requestBody?.content?.['application/json']?.schema;
+    const properties = Object.keys(schema?.properties || {});
+    const recordKeys = new Set(Object.keys(record || {}));
+    return properties.some((key) => recordKeys.has(key));
+  });
+
+  return fallbackSelection || fallbackRoutes[0] || routes[0] || null;
+}
+
+function getOutcomeSignal(response) {
+  const data = response?.data;
+  if (!data || typeof data !== 'object') return null;
+
+  if (typeof data.eligible === 'boolean') return data.eligible ? 'ELIGIBLE' : 'INELIGIBLE';
+  if (typeof data.decision === 'string') return data.decision.toUpperCase();
+  if (typeof data.result === 'string') return data.result.toUpperCase();
+  if (typeof data.status === 'string') return data.status.toUpperCase();
+  return null;
+}
+
+function evaluateCaseExpectation(record, route, response, evaluation) {
+  const expectedHttpStatus = Number(record?.expectedHttpStatus);
+  const actualHttpStatus = Number(response?.status || 0);
+  const expectedOutcome = String(record?.expectedOutcome || '').trim().toUpperCase();
+  const actualOutcome = getOutcomeSignal(response);
+
+  const statusMatches = Number.isFinite(expectedHttpStatus) && expectedHttpStatus > 0
+    ? actualHttpStatus == expectedHttpStatus
+    : true;
+
+  let outcomeMatches = true;
+  let expectationNote = '';
+
+  if (expectedOutcome === 'PASS') {
+    outcomeMatches = evaluation?.result === 'PASS';
+    expectationNote = outcomeMatches ? 'The route passed as expected.' : 'The route did not pass as expected.';
+  } else if (expectedOutcome === 'FAIL') {
+    outcomeMatches = evaluation?.result === 'FAIL';
+    expectationNote = outcomeMatches ? 'The route failed as expected.' : 'The route did not fail as expected.';
+  } else if (expectedOutcome === 'ELIGIBLE' || expectedOutcome === 'INELIGIBLE') {
+    outcomeMatches = actualOutcome === expectedOutcome;
+    expectationNote = actualOutcome
+      ? `The business outcome was ${actualOutcome}.`
+      : 'The response did not expose a clear business outcome signal.';
+  }
+
+  const status = statusMatches && outcomeMatches ? 'PASS' : 'FAIL';
+  const summary = status === 'PASS'
+    ? `Case matched expected status ${expectedHttpStatus || actualHttpStatus}${expectedOutcome ? ` and expected outcome ${expectedOutcome}` : ''}.`
+    : `Case did not match the expected status or outcome. Expected HTTP ${expectedHttpStatus || 'n/a'}${expectedOutcome ? ` and ${expectedOutcome}` : ''}, but got HTTP ${actualHttpStatus}${actualOutcome ? ` and ${actualOutcome}` : ''}.`;
+
+  return {
+    status,
+    expectedHttpStatus: Number.isFinite(expectedHttpStatus) ? expectedHttpStatus : null,
+    actualHttpStatus,
+    expectedOutcome: expectedOutcome || null,
+    actualOutcome,
+    expectationNote,
+    summary
+  };
+}
+
+function buildCaseFinding(caseResult) {
+  return {
+    route: `${caseResult.caseId ? `${caseResult.caseId} · ` : ''}${caseResult.route}`,
+    result: caseResult.status,
+    reason: caseResult.summary,
+    requestDataset: {
+      payloadFields: Object.keys(caseResult.payload || {}),
+      payloadPreview: caseResult.payload || null,
+      sourceType: 'uploaded_file',
+      sourceRecord: caseResult.sourceRecord || null
+    },
+    responseDataset: {
+      statusCode: caseResult.actualHttpStatus,
+      topLevelFields: caseResult.response?.data && typeof caseResult.response.data === 'object' && !Array.isArray(caseResult.response.data)
+        ? Object.keys(caseResult.response.data)
+        : [],
+      responsePreview: caseResult.response?.data ?? null
+    }
+  };
+}
+
+function buildCaseSummaryItems(caseResults) {
+  return caseResults.map((item) => ({
+    route: `${item.caseId ? `${item.caseId} · ` : ''}${item.route}`,
+    result: item.status,
+    summary: `${item.testCase}: ${item.summary}`
+  }));
+}
+
+function buildBatchUserSummary(caseResults, passed, failed) {
+  return {
+    overview: 'A simplified explanation of the uploaded bulk dataset run for a non-technical audience.',
+    result: failed > 0
+      ? `The bulk run finished with ${passed} passing case(s) and ${failed} failing case(s).`
+      : `The bulk run finished successfully with all ${passed} case(s) passing.`,
+    impact: failed > 0
+      ? 'Some scenarios did not match their expected status or business outcome and should be reviewed.'
+      : 'All uploaded scenarios matched their expected status and business outcome.',
+    finalVerdict: failed > 0 ? 'FAIL' : 'PASS'
+  };
+}
+
+async function runSingleRoute(route, record, fileSummary, resolvedApiBaseUrl, executionState) {
+  const schema = route.requestBody?.content?.['application/json']?.schema;
+  const generatedPayload = generatePayload(schema);
+  const filePayload = buildPayloadFromRecord(schema, record || {});
+  const payload = mergePayloads(generatedPayload, filePayload);
+
+  if (executionState.customerId && payload.customer_id === undefined) payload.customer_id = executionState.customerId;
+  if (executionState.loanId && payload.loan_id === undefined) payload.loan_id = executionState.loanId;
+
+  const response = await invokeApi(resolvedApiBaseUrl, route, payload, executionState);
+  const evaluation = await evaluateResponse(route, response);
+  updateExecutionState(route, response, payload, executionState);
+
+  return {
+    route,
+    payload,
+    response,
+    evaluation,
+    datasetUsed: summarizeDataset(route, payload, response, record, fileSummary)
+  };
+}
+
+async function runBulkDataset({ prompt, resolvedApiBaseUrl, resolvedSwaggerUrl, maxRoutes, routes, selectedRoutes, retrieval, parsedFile, fileSummary, executionStartedAt }) {
+  const executionState = {};
+  const caseResults = [];
+  const datasetsUsed = [];
+  const results = [];
+  const routeTimings = [];
+
+  for (let index = 0; index < parsedFile.records.length; index += 1) {
+    const record = parsedFile.records[index] || {};
+    const caseStartedAt = nowMs();
+    const route = findRouteForRecord(record, routes, selectedRoutes);
+
+    if (!route) {
+      const failedCase = {
+        caseId: record.caseId || `CASE-${String(index + 1).padStart(3, '0')}`,
+        testCase: record.testCase || `Dataset case ${index + 1}`,
+        action: record.action || null,
+        route: 'No route matched',
+        status: 'FAIL',
+        expectedHttpStatus: Number(record.expectedHttpStatus || 0) || null,
+        actualHttpStatus: null,
+        expectedOutcome: record.expectedOutcome || null,
+        actualOutcome: null,
+        summary: 'No API route could be matched for this dataset row.',
+        payload: null,
+        response: null,
+        sourceRecord: record
+      };
+      caseResults.push(failedCase);
+      continue;
+    }
+
+    const singleRun = await runSingleRoute(route, record, fileSummary, resolvedApiBaseUrl, executionState);
+    const expectation = evaluateCaseExpectation(record, route, singleRun.response, singleRun.evaluation);
+    const caseId = record.caseId || `CASE-${String(index + 1).padStart(3, '0')}`;
+    const caseResult = {
+      caseId,
+      testCase: record.testCase || `Dataset case ${index + 1}`,
+      action: record.action || null,
+      route: `${route.method} ${route.path}`,
+      status: expectation.status,
+      expectedHttpStatus: expectation.expectedHttpStatus,
+      actualHttpStatus: expectation.actualHttpStatus,
+      expectedOutcome: expectation.expectedOutcome,
+      actualOutcome: expectation.actualOutcome,
+      expectationNote: expectation.expectationNote,
+      summary: expectation.summary,
+      payload: singleRun.payload,
+      response: singleRun.response,
+      sourceRecord: record,
+      evaluation: singleRun.evaluation
+    };
+
+    caseResults.push(caseResult);
+    datasetsUsed.push(singleRun.datasetUsed);
+    results.push({
+      route: `${route.method} ${route.path}`,
+      payload: singleRun.payload,
+      response: singleRun.response,
+      evaluation: { result: expectation.status, reason: expectation.summary },
+      sourceRecord: record
+    });
+    routeTimings.push({
+      caseId,
+      route: `${route.method} ${route.path}`,
+      durationMs: nowMs() - caseStartedAt,
+      statusCode: singleRun.response?.status ?? null
+    });
+  }
+
+  const passed = caseResults.filter((item) => item.status === 'PASS').length;
+  const failed = caseResults.filter((item) => item.status === 'FAIL').length;
+  const reviewed = caseResults.filter((item) => item.status === 'REVIEW').length;
+  const detailedSummary = buildCaseSummaryItems(caseResults);
+  const keyFindings = caseResults.map(buildCaseFinding);
+  const executionCompletedAt = nowMs();
+  const responseTimeMs = executionCompletedAt - executionStartedAt;
+  const embeddingDimensionEstimate = retrieval?.rankedRoutes?.length ? retrieval.rankedRoutes.length : routes.length;
+
+  return {
+    status: 'success',
+    bulkMode: true,
+    selectedRouteCount: new Set(caseResults.map((item) => item.route)).size,
+    dependencyGraph: buildDependencyGraph(selectedRoutes),
+    caseResults,
+    results,
+    datasetsUsed,
+    detailedSummary,
+    uploadedFileSummary: fileSummary,
+    summary: {
+      totalTests: caseResults.length,
+      totalCases: caseResults.length,
+      passed,
+      failed,
+      reviewed,
+      keyFindings
+    },
+    decision: failed > 0 ? 'FAIL' : 'PASS',
+    llmReasoning: {
+      description:
+        failed > 0
+          ? 'The agent accepted the uploaded bulk dataset, looped through each case, matched one route per case, executed the route, and compared the actual result against the expected status and expected business outcome. At least one case did not match its expectation.'
+          : 'The agent accepted the uploaded bulk dataset, looped through each case, matched one route per case, executed the route, and compared the actual result against the expected status and expected business outcome. All cases matched their expectations.'
+    },
+    userSummary: buildBatchUserSummary(caseResults, passed, failed),
+    executionContext: {
+      apiBaseUrl: resolvedApiBaseUrl,
+      swaggerUrl: resolvedSwaggerUrl,
+      maxRoutes,
+      selectedRoutes: selectedRoutes.map((r) => `${r.method} ${r.path}`),
+      uploadedFile: fileSummary,
+      vectorRetrieval: retrieval,
+      loopMode: 'bulk_dataset'
+    },
+    testInputs: caseResults.map((item) => ({ caseId: item.caseId, testCase: item.testCase, route: item.route, payload: item.payload })),
+    vectorRetrieval: retrieval,
+    ragTrace: {
+      inputPrompt: prompt,
+      bulkMode: true,
+      loopCount: caseResults.length,
+      bigNumbers: {
+        routeCorpusSize: routes.length,
+        vectorCandidates: retrieval?.rankedRoutes?.length || routes.length,
+        selectedEndpointCount: selectedRoutes.length,
+        multiEndpointCount: new Set(caseResults.map((item) => item.route)).size,
+        shortRunResponseTimeMs: responseTimeMs
+      },
+      inputRecordBehaviour: {
+        recorded: true,
+        sessionTraceStoredInSqlite: true,
+        uploadedFileName: fileSummary?.fileName || null,
+        routeTimings
+      },
+      vectorSpace: {
+        strategy: retrieval?.strategy || retrieval?.mode || 'local_tfidf_cosine',
+        embeddingDimensionEstimate,
+        rankedRouteCount: retrieval?.rankedRoutes?.length || 0,
+        dedicatedVectorDb: retrieval?.architecture?.dedicatedVectorDb,
+        embeddedReducedMode: retrieval?.architecture?.embeddedReducedMode
+      }
+    },
+    metrics: {
+      responseTimeMs,
+      routeCorpusSize: routes.length,
+      selectedEndpointCount: selectedRoutes.length,
+      vectorCandidateCount: retrieval?.rankedRoutes?.length || routes.length,
+      loopCount: caseResults.length
+    }
+  };
+}
+
+
 function summarizeDataset(route, payload, response, sourceRecord, fileSummary) {
   return {
     route: `${route.method} ${route.path}`,
@@ -215,6 +516,22 @@ async function runAgent({ prompt, apiBaseUrl, swaggerUrl, maxRoutes = 6, uploade
   const dependencyGraph = buildDependencyGraph(selectedRoutes);
   const parsedFile = parseUploadedData(uploadedFile);
   const fileSummary = buildFileSummary(parsedFile);
+
+  if (parsedFile.records.length > 1) {
+    return runBulkDataset({
+      prompt,
+      resolvedApiBaseUrl,
+      resolvedSwaggerUrl,
+      maxRoutes,
+      routes,
+      selectedRoutes,
+      retrieval,
+      parsedFile,
+      fileSummary,
+      executionStartedAt
+    });
+  }
+
   const executionState = {};
   const results = [];
   const datasetsUsed = [];
