@@ -139,7 +139,7 @@ function actionRouteCandidates(action = '') {
   return routeMap[normalized] || [];
 }
 
-function findRouteForRecord(record, routes = [], fallbackRoutes = [], retrieval = null) {
+function findRouteForRecord(record, routes = [], fallbackRoutes = []) {
   const candidates = actionRouteCandidates(record?.action);
   if (candidates.length) {
     const matched = routes.find((route) => candidates.includes(`${route.method} ${route.path}`));
@@ -153,15 +153,7 @@ function findRouteForRecord(record, routes = [], fallbackRoutes = [], retrieval 
     return properties.some((key) => recordKeys.has(key));
   });
 
-  if (fallbackSelection) return fallbackSelection;
-
-  const vectorFallback = retrieval?.rankedRoutes?.[0]?.route;
-  if (vectorFallback) {
-    const matchedVectorRoute = routes.find((route) => `${route.method} ${route.path}` === vectorFallback);
-    if (matchedVectorRoute) return matchedVectorRoute;
-  }
-
-  return fallbackRoutes[0] || routes[0] || null;
+  return fallbackSelection || fallbackRoutes[0] || routes[0] || null;
 }
 
 function getOutcomeSignal(response) {
@@ -222,8 +214,6 @@ function buildCaseFinding(caseResult) {
     route: `${caseResult.caseId ? `${caseResult.caseId} · ` : ''}${caseResult.route}`,
     result: caseResult.status,
     reason: caseResult.summary,
-    confidence: caseResult.matchConfidence,
-    dominantSource: caseResult.matchSource,
     requestDataset: {
       payloadFields: Object.keys(caseResult.payload || {}),
       payloadPreview: caseResult.payload || null,
@@ -293,7 +283,7 @@ async function runBulkDataset({ prompt, resolvedApiBaseUrl, resolvedSwaggerUrl, 
   for (let index = 0; index < parsedFile.records.length; index += 1) {
     const record = parsedFile.records[index] || {};
     const caseStartedAt = nowMs();
-    const route = findRouteForRecord(record, routes, selectedRoutes, retrieval);
+    const route = findRouteForRecord(record, routes, selectedRoutes);
 
     if (!route) {
       const failedCase = {
@@ -318,7 +308,6 @@ async function runBulkDataset({ prompt, resolvedApiBaseUrl, resolvedSwaggerUrl, 
     const singleRun = await runSingleRoute(route, record, fileSummary, resolvedApiBaseUrl, executionState);
     const expectation = evaluateCaseExpectation(record, route, singleRun.response, singleRun.evaluation);
     const caseId = record.caseId || `CASE-${String(index + 1).padStart(3, '0')}`;
-    const rankedMatch = retrieval?.rankedRoutes?.find((item) => item.route === `${route.method} ${route.path}`) || null;
     const caseResult = {
       caseId,
       testCase: record.testCase || `Dataset case ${index + 1}`,
@@ -334,10 +323,7 @@ async function runBulkDataset({ prompt, resolvedApiBaseUrl, resolvedSwaggerUrl, 
       payload: singleRun.payload,
       response: singleRun.response,
       sourceRecord: record,
-      evaluation: singleRun.evaluation,
-      matchConfidence: rankedMatch?.probability ?? 0.98,
-      matchSource: rankedMatch ? 'vector + swagger + dataset' : record?.action ? 'rule + dataset' : 'swagger + dataset',
-      datasetSources: ['swagger dataset', 'api dataset', 'vector dataset']
+      evaluation: singleRun.evaluation
     };
 
     caseResults.push(caseResult);
@@ -412,8 +398,7 @@ async function runBulkDataset({ prompt, resolvedApiBaseUrl, resolvedSwaggerUrl, 
         vectorCandidates: retrieval?.rankedRoutes?.length || routes.length,
         selectedEndpointCount: selectedRoutes.length,
         multiEndpointCount: new Set(caseResults.map((item) => item.route)).size,
-        shortRunResponseTimeMs: responseTimeMs,
-        dominantRouteProbability: retrieval?.rankedRoutes?.[0]?.probability || null
+        shortRunResponseTimeMs: responseTimeMs
       },
       inputRecordBehaviour: {
         recorded: true,
@@ -426,10 +411,7 @@ async function runBulkDataset({ prompt, resolvedApiBaseUrl, resolvedSwaggerUrl, 
         embeddingDimensionEstimate,
         rankedRouteCount: retrieval?.rankedRoutes?.length || 0,
         dedicatedVectorDb: retrieval?.architecture?.dedicatedVectorDb,
-        embeddedReducedMode: retrieval?.architecture?.embeddedReducedMode,
-        probabilityPurpose: retrieval?.probabilityModel?.purpose || null,
-        dominantIncrease: retrieval?.probabilityModel?.dominantIncrease || null,
-        predictionReduce: retrieval?.probabilityModel?.predictionReduce || null
+        embeddedReducedMode: retrieval?.architecture?.embeddedReducedMode
       }
     },
     metrics: {
@@ -438,13 +420,6 @@ async function runBulkDataset({ prompt, resolvedApiBaseUrl, resolvedSwaggerUrl, 
       selectedEndpointCount: selectedRoutes.length,
       vectorCandidateCount: retrieval?.rankedRoutes?.length || routes.length,
       loopCount: caseResults.length
-    },
-    approachSummary: {
-      actionFocus: 'Business actions such as create_customer are used before endpoint execution.',
-      dataLayers: ['swagger dataset', 'api dataset', 'vector dataset'],
-      probability: 'Each ranked route carries a probability score to justify the dominant route.',
-      predictionReduce: 'Wrong route selection is reduced by combining direct action mapping, swagger schema overlap, and vector ranking.',
-      dominantIncrease: 'The strongest route is promoted as the dominant candidate when both semantics and dataset fields agree.'
     }
   };
 }

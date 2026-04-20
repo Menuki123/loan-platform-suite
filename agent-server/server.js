@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const { runAgent } = require('./agent/qaAgent');
+const { loadRoutes } = require('./services/swaggerLoader');
 const {
   ensureSession,
   saveMessage,
@@ -21,6 +22,72 @@ const defaultMaxRoutes = Number(process.env.MAX_ROUTES || 6);
 
 function makeSessionId() {
   return crypto.randomUUID();
+}
+
+
+function normalizePrompt(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
+
+function promptMentions(prompt, terms = []) {
+  const normalized = normalizePrompt(prompt);
+  return terms.some((term) => normalized.includes(term));
+}
+
+function routeLine(route) {
+  return `${route.method} ${route.path}${route.summary ? ` — ${route.summary}` : ''}`;
+}
+
+async function tryBuildGuidanceResponse({ prompt, swaggerUrl }) {
+  const normalized = normalizePrompt(prompt);
+  const asksForSystemInstructions = promptMentions(normalized, ['system instructions', 'workflow means system instructions']);
+  const asksForWorkflow = asksForSystemInstructions || promptMentions(normalized, ['show workflow', 'workflow', 'workflow to follow']);
+  const asksForActions = promptMentions(normalized, ['show available actions', 'available actions', 'check actions', 'swagger routes', 'openapi routes', 'list routes']);
+  const asksForExecution = promptMentions(normalized, ['execution options', 'execution phase', 'how can i execute', 'executions']);
+  const asksForResults = promptMentions(normalized, ['results phase', 'show results format', 'result format']);
+
+  if (!asksForWorkflow && !asksForActions && !asksForExecution && !asksForResults) {
+    return null;
+  }
+
+  const routes = await loadRoutes(swaggerUrl);
+  const lines = [];
+
+  if (asksForActions) {
+    lines.push('Available actions from the Swagger/OpenAPI document:');
+    routes.slice(0, 12).forEach((route) => lines.push(`- ${routeLine(route)}`));
+  }
+
+  if (asksForWorkflow) {
+    lines.push('Workflow:');
+    lines.push('1. Check actions from Swagger/OpenAPI.');
+    lines.push('2. Choose an execution option.');
+    lines.push('3. Execute and review results.');
+    if (asksForSystemInstructions) {
+      lines.push('System instructions are only shown because you explicitly asked for them.');
+      lines.push('Guardrails: use documented Swagger routes, choose bulk or individual or manual JSON, and review the returned results before continuing.');
+    }
+  }
+
+  if (asksForExecution) {
+    lines.push('Execution options:');
+    lines.push('- Bulk cases: upload a CSV or JSON dataset and run all rows in a loop.');
+    lines.push('- Individual case: run one selected route with one prepared case.');
+    lines.push('- Manual JSON: paste one JSON body and execute it against a documented route.');
+  }
+
+  if (asksForResults) {
+    lines.push('Results output:');
+    lines.push('- Selected route');
+    lines.push('- Response status');
+    lines.push('- Reasoning or validation note');
+    lines.push('- PASS or FAIL when evaluation is used');
+  }
+
+  return {
+    type: 'guidance',
+    text: lines.join('\n')
+  };
 }
 
 async function buildConversationPayload(sessionId) {
@@ -173,6 +240,22 @@ app.post('/qa/run', async (req, res) => {
       content: prompt,
       metadata: { source: 'conversation_prompt' }
     });
+
+    const guidance = await tryBuildGuidanceResponse({ prompt, swaggerUrl });
+    if (guidance) {
+      await saveMessage({
+        sessionId,
+        role: 'assistant',
+        messageType: 'text',
+        content: guidance.text
+      });
+      return res.json({
+        sessionId,
+        workflowStatus: savedConfig?.workflow_status || 'DRAFT',
+        type: guidance.type,
+        message: guidance.text
+      });
+    }
 
     await saveMessage({
       sessionId,

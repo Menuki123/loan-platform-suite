@@ -171,10 +171,6 @@ function UploadedFileSummary({ fileSummary }) {
           <div className='mt-2 text-sm font-semibold text-slate-900'>{fileSummary.columns?.length ? fileSummary.columns.join(', ') : 'None detected'}</div>
         </div>
       </div>
-      <div className='mt-4 rounded-3xl bg-slate-50 p-5'>
-        <div className='text-xs uppercase tracking-wide text-slate-500'>Dataset approach</div>
-        <div className='mt-2 text-sm text-slate-700'>Swagger dataset + API dataset + vector dataset are combined so the system can run bulk cases in a loop and display one repeated output structure per case.</div>
-      </div>
     </div>
   );
 }
@@ -194,11 +190,6 @@ function EndpointCards({ items = [] }) {
             </span>
           </div>
           <div className='mt-3 text-sm leading-6 text-slate-700'>{item.reason}</div>
-          {(item.confidence || item.dominantSource) ? (
-            <div className='mt-3 rounded-2xl bg-slate-100 px-3 py-2 text-xs text-slate-600'>
-              {item.confidence ? `Probability ${(item.confidence * 100).toFixed(1)}%` : ''}{item.confidence && item.dominantSource ? ' · ' : ''}{item.dominantSource ? `Source ${item.dominantSource}` : ''}
-            </div>
-          ) : null}
           <div className='mt-4 grid gap-3 md:grid-cols-2'>
             <div className='rounded-2xl bg-white p-4'>
               <div className='text-xs font-semibold uppercase tracking-wide text-slate-500'>Request dataset</div>
@@ -256,7 +247,7 @@ function VectorRetrievalPanel({ retrieval }) {
           <div key={`${item.route}-${index}`} className='rounded-2xl bg-slate-50 p-4'>
             <div className='flex flex-col gap-2 md:flex-row md:items-center md:justify-between'>
               <div className='text-sm font-semibold text-slate-900'>{item.route}</div>
-              <div className='text-xs text-slate-500'>Probability {(item.probability * 100).toFixed(1)}% · Vector {item.vectorScore} · Keyword {item.keywordScore} · Combined {item.combinedScore}</div>
+              <div className='text-xs text-slate-500'>Vector {item.vectorScore} · Keyword {item.keywordScore} · Combined {item.combinedScore}</div>
             </div>
             <div className='mt-2 text-sm text-slate-600'>Matched terms: {item.matchedTerms?.length ? item.matchedTerms.join(', ') : 'No direct term matches'}</div>
           </div>
@@ -364,13 +355,13 @@ function formatTime(value) {
 function buildUiMessages(apiMessages = [], configReady) {
   const base = [];
   if (!configReady && apiMessages.length === 0) {
-    base.push({ role: 'assistant', type: 'text', text: 'Welcome. Please provide the Swagger URL first so I can prepare the evaluation.' });
+    base.push({ role: 'assistant', type: 'text', text: 'Welcome. Please provide the Swagger URL first so I can prepare the Swagger-driven workflow.' });
     base.push({ role: 'assistant', type: 'config' });
     return base;
   }
   for (const msg of apiMessages) {
     if (msg.message_type === 'config_tool') {
-      base.push({ role: 'assistant', type: 'text', text: 'Swagger configuration captured through the frontend tool. Now send the evaluation prompt.', createdAt: msg.created_at });
+      base.push({ role: 'assistant', type: 'text', text: 'Swagger configuration captured through the frontend tool. Ask for available actions, workflow, execution options, or run an evaluation.', createdAt: msg.created_at });
       continue;
     }
     if (msg.message_type === 'result_tool') {
@@ -530,7 +521,7 @@ function ConversationScreen({ onLogout }) {
                 </div>
 
                 <div className='flex items-end gap-3'>
-                  <textarea className='min-h-[90px] flex-1 resize-none rounded-[24px] border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 disabled:bg-slate-100' placeholder={configReady ? 'Send the evaluation prompt...' : 'Complete the Swagger URL field first...'} value={input} onChange={(e) => setInput(e.target.value)} disabled={!configReady} />
+                  <textarea className='min-h-[90px] flex-1 resize-none rounded-[24px] border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 disabled:bg-slate-100' placeholder={configReady ? 'Ask about available actions, execution options, workflow, or run an evaluation...' : 'Complete the Swagger URL field first...'} value={input} onChange={(e) => setInput(e.target.value)} disabled={!configReady} />
                   <button onClick={sendMessage} disabled={!configReady || loading} className='rounded-full bg-blue-600 px-5 py-4 font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300'>
                     {loading ? 'Running...' : 'Send'}
                   </button>

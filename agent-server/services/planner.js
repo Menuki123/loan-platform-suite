@@ -82,14 +82,11 @@ function rankRoutesWithLocalVector(prompt, routes = []) {
     const keywordScore = scoreRouteKeyword(prompt, route);
     const combinedScore = vectorScore * 100 + keywordScore * 5;
 
-    const probability = Math.max(0, Math.min(0.99, (vectorScore * 0.75) + (Math.min(keywordScore, 8) / 20) + 0.1));
-
     return {
       route,
       keywordScore,
       vectorScore: Number(vectorScore.toFixed(4)),
       combinedScore: Number(combinedScore.toFixed(4)),
-      probability: Number(probability.toFixed(4)),
       matchedTerms: tokenize(prompt).filter((token) => buildRouteText(route).toLowerCase().includes(token)).slice(0, 8)
     };
   }).sort((a, b) => b.combinedScore - a.combinedScore);
@@ -106,11 +103,6 @@ function buildRetrievalMetadata(mode, strategy, ranked, usedLLMPlanner) {
       embeddedReducedMode: 'The embedded vector layer is intentionally reduced and kept local as a lightweight fallback, not the main long-term store.',
       dualMode: 'The project can operate with a dedicated vector DB or without a vector DB by switching to deterministic local ranking.'
     },
-    probabilityModel: {
-      purpose: 'Probability is used to reduce wrong predictions and make the dominant route easier to justify in demos.',
-      dominantIncrease: 'The highest ranked route becomes the dominant candidate when keyword overlap and vector similarity both stay high.',
-      predictionReduce: 'Low-confidence routes stay visible but are deprioritised so the planner reduces bad route selection.'
-    },
     updateFrequency: {
       daily: 'Daily delta update for changed routes, prompts, and operational documents.',
       weekly: 'Weekly refresh for full re-index, cleanup, and retrieval quality review.',
@@ -123,7 +115,6 @@ function buildRetrievalMetadata(mode, strategy, ranked, usedLLMPlanner) {
       vectorScore: item.vectorScore,
       keywordScore: item.keywordScore,
       combinedScore: item.combinedScore,
-      probability: item.probability,
       matchedTerms: item.matchedTerms
     }))
   };
